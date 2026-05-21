@@ -1,7 +1,11 @@
 (function () {
   const CART_STORAGE_KEY = "luxe:cart";
   const WISHLIST_STORAGE_KEY = "luxe:wishlist";
+  const PROFILE_STORAGE_KEY = "luxe:profile";
   const NAV_TRANSITION_STORAGE_KEY = "luxe:nav-transition";
+  const API_ENDPOINT = "api.php";
+  let cartSyncTimer;
+  let wishlistSyncTimer;
 
   const UI_TEXT = {
     addToWishlist: "Add to Wishlist",
@@ -191,12 +195,17 @@
     }
   }
 
-  function writeCart(items) {
+  function writeCartCache(items) {
     try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(Array.isArray(items) ? items : []));
     } catch (error) {
-      // Storage may be unavailable in private mode; checkout still works with an empty bag.
+      // Storage may be unavailable in private mode.
     }
+  }
+
+  function writeCart(items) {
+    writeCartCache(items);
+    syncCartToBackend(items);
   }
 
   function readWishlist() {
@@ -210,10 +219,151 @@
   }
 
   function writeWishlist(items) {
+    writeWishlistCache(items);
+    syncWishlistToBackend(items);
+  }
+
+  function writeWishlistCache(items) {
     try {
-      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(Array.isArray(items) ? items : []));
     } catch (error) {
       // Wishlist persistence is optional.
+    }
+  }
+
+  function readProfile() {
+    try {
+      const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeProfileCache(profile) {
+    try {
+      if (profile) {
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+      } else {
+        localStorage.removeItem(PROFILE_STORAGE_KEY);
+      }
+    } catch (error) {
+      // Profile cache is optional; the PHP backend remains the source of truth.
+    }
+  }
+
+  function dispatchProfileUpdated(profile) {
+    window.dispatchEvent(new CustomEvent("luxe:profile-updated", { detail: profile || null }));
+  }
+
+  function dispatchCartUpdated() {
+    window.dispatchEvent(new CustomEvent("luxe:cart-updated"));
+  }
+
+  async function apiRequest(action, options = {}) {
+    if (typeof window.fetch !== "function") {
+      throw new Error("Fetch is unavailable.");
+    }
+
+    const request = {
+      method: options.method || "GET",
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/json",
+      },
+    };
+
+    if (Object.prototype.hasOwnProperty.call(options, "body")) {
+      request.headers["Content-Type"] = "application/json";
+      request.body = JSON.stringify(options.body || {});
+    }
+
+    const response = await window.fetch(`${API_ENDPOINT}?action=${encodeURIComponent(action)}`, request);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.error || "Backend request failed.");
+    }
+
+    return payload;
+  }
+
+  function syncCartToBackend(items) {
+    if (!Array.isArray(items) || typeof window.fetch !== "function") {
+      return;
+    }
+
+    window.clearTimeout(cartSyncTimer);
+    cartSyncTimer = window.setTimeout(() => {
+      apiRequest("cart/save", {
+        method: "POST",
+        body: { items },
+      })
+        .then((payload) => {
+          if (Array.isArray(payload.cart)) {
+            writeCartCache(payload.cart);
+            updateBagCountDisplay();
+            dispatchCartUpdated();
+          }
+        })
+        .catch(() => {});
+    }, 180);
+  }
+
+  function syncWishlistToBackend(items) {
+    if (!Array.isArray(items) || typeof window.fetch !== "function") {
+      return;
+    }
+
+    window.clearTimeout(wishlistSyncTimer);
+    wishlistSyncTimer = window.setTimeout(() => {
+      apiRequest("wishlist/save", {
+        method: "POST",
+        body: { items },
+      })
+        .then((payload) => {
+          if (Array.isArray(payload.wishlist)) {
+            writeWishlistCache(payload.wishlist);
+            renderWishlistButton(document.querySelector("[data-wishlist]"));
+            renderWishlistLists();
+          }
+        })
+        .catch(() => {});
+    }, 180);
+  }
+
+  async function initBackendState() {
+    if (typeof window.fetch !== "function") {
+      return;
+    }
+
+    const localCart = readCart();
+    const localWishlist = readWishlist();
+    try {
+      const state = await apiRequest("state");
+      if (Array.isArray(state.cart) && state.cart.length) {
+        writeCartCache(state.cart);
+        dispatchCartUpdated();
+      } else if (localCart.length) {
+        syncCartToBackend(localCart);
+      }
+
+      if (Array.isArray(state.wishlist) && state.wishlist.length) {
+        writeWishlistCache(state.wishlist);
+      } else if (localWishlist.length) {
+        syncWishlistToBackend(localWishlist);
+      }
+
+      if (state.profile) {
+        writeProfileCache(state.profile);
+        dispatchProfileUpdated(state.profile);
+      }
+
+      updateBagCountDisplay();
+      renderWishlistButton(document.querySelector("[data-wishlist]"));
+      renderWishlistLists();
+    } catch (error) {
+      // Local storage remains the development fallback if the PHP/PostgreSQL backend is offline.
     }
   }
 
@@ -403,6 +553,14 @@
       }
       if (menuButton) {
         actionRow.appendChild(menuButton);
+      }
+    });
+  }
+
+  function hydrateImageAltText() {
+    document.querySelectorAll("img[data-alt]").forEach((image) => {
+      if (!image.getAttribute("alt")) {
+        image.setAttribute("alt", image.dataset.alt || "");
       }
     });
   }
@@ -1160,135 +1318,135 @@
       coat: {
         badge: "Outerwear",
         title: "Wool Tailored Coat",
-	        reviews: "(86 Reviews)",
-	        price: "$495.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuBchUcD0EUx2j2iuPQpWTJiIV8_zw6fVXkrrcoW0NNOHi1SxdQu66MH8cT3G92PJljVOKIKgAIxyBfrzWWenQqSPhvb1LWVR7mApfsOtw2uz6Y0KuD0iE38tFoufpB9nbsctHFEUVTIfLvBiOPst0XZ0luxheHlGNr5fdlKJaBuMALpmJsNioBdRUkPlV9y0lbkOIJe3LmZLgRYbVi9X9cNiyeudwa6R7G7FYt8ukQkzQCN-Lq6ASZTwC8kocRV1qzT1TLfE4Ck0ws",
-	        colors: [{ name: "Deep Navy", hex: "#1f2f5d" }],
-	        sizes: ["S", "M", "L"],
-	      },
-	      heels: {
-	        badge: "Footwear",
-	        title: "Leather Artisan Pump",
-	        reviews: "(64 Reviews)",
-	        price: "$285.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCJnqionFY9y6EYbY_k4evRIJvyAUyoVg6PwXuwkjSxd9qMHcQnc8LWwRtP425gPIACwYi4BS5rEn6a0KGYC0FNUJvGW5DD0_kSsfAwo0JEcqudDivOu-ipKeVOJq6AGfrgwkWDX--L6eQ64NWowPC_RH-NzHnWgcRyYnqAasPBj1Kkzbs7jslOeGddj7tOwH78WBLt_Aj94R2TFl-YneG96_bN-w1tvvuaSkU-DBLuCJN2XQosE_KpP5P8hSYeH9aEujzdyJQhAKA",
-	        colors: [{ name: "Black Leather", hex: "#111111" }],
-	        sizes: ["EU 36", "EU 37", "EU 38", "EU 39", "EU 40"],
-	      },
-	      tote: {
-	        badge: "Bags",
-	        title: "Structural Leather Tote",
-	        reviews: "(52 Reviews)",
-	        price: "$425.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCQPtWo0O_h25ZD-uqlJNUOw_CMG6SjaIqwAdS7fF4-9zejORMZ_NS2z4p6KnILnMjKol4ArgZXQDMligjx1c4OZfzlnKZ0QCj3wVXujPKAC1OmvFlLDAwsIRshZBPok04K30_grPaCoCynebD3yteoWChW4NTJTnO3_ms3Qj_z61YdTuKy8wujCaIbt_2-hq2cf1tvvkCCTGkhrSYwJaECUQpkz1Nc7H3rbZ475nBm59md7IDO_JiPOxvWsjB_tlGvr5_oX2AaDRs",
-	        colors: [{ name: "Cream Leather", hex: "#e8dfd2" }],
-	        sizes: ["One Size"],
-	      },
-	      gown: {
-	        badge: "Dresses",
-	        title: "Silk Evening Gown",
-	        reviews: "(71 Reviews)",
-	        price: "$690.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuDyT9BhCFk-MjJkEIVTVNYLmb1QxR0SY6MzQjKyVpH6ALokWVkyTHfXcL2ePj0kD36BSmDQ2m1UX1l9b4U2Tdu6Ux_Jwi1oNQSi08hC2M2BgKgNtq5cjSrCZV5A51TrT7tgWxx1dIIwS_fPxiRfi1HDyR9tLER9Vb2k5gL75JToaQ-7z0vD5JDn-D6NuRPHrHGIS4-DIAHKY57ZRJ0l3agSH1MbIGmaB2agVwG8Mxy37aKCRpprkhttpXXdfeoWXyvTErZQS8kAyv4",
-	        colors: [{ name: "Ivory Silk", hex: "#f6f1e8" }],
-	        sizes: ["S", "M", "L"],
-	      },
-	      shirt: {
-	        badge: "Shirts & Tops",
-	        title: "Structured Poplin Shirt",
-	        reviews: "(39 Reviews)",
-	        price: "$145.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCrgWwcqbnGCbjTzZ_L6va3PhP4cf4IkTCLovTQVVQ21uNl8Z-iAYJCbtNUwdrpW52ANcPOZwSBpeAkbpFZnb0-vmkLpg0C_vW6vRxtMZj6gBIA2DX3yK8ePkauxAxka-V-BfxLiFYxmc6Mx5JHfFpx3WxafijUCHffhouLljkrx8EiJup7kTSg2xicdPlld859d7hAUJTEWheTEcKB3y6rjnpquQM6TXl1jopT4NOnhBwGC5VSLaG6XmWgnXyjf0PVwYVyU0-uFaM",
-	        colors: [{ name: "Optic White", hex: "#ffffff" }],
-	        sizes: ["S", "M", "L"],
-	      },
-	      "moto-jacket": {
-	        badge: "Outerwear",
-	        title: "Asymmetric Moto Jacket",
-	        reviews: "(95 Reviews)",
-	        price: "$895.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCTQq3n3DCDOOp4uvO55s47vNfLVHaHL4RRpmQqKOoCNfugHrUSjaTDkAo5K3YISIbA7a6jPcUShZsJ2Kg4juASweAYhtFdUprZXKWLmzBEBqEGrcYqOd5n_2XbRfHpRdAIXuQ_gktPbMPRiK3WoC9oUbfmD9gEkBh2mvSxQF4TL5GvJomBfX-CHRr8oP2nWafsoDLJB-Z1Ip4V9yuEAU8yFbdTe2Vn1fUWblpq2vamVyaLdv6edctwOp1ntp-15r6hJZVsMpz5A6U",
-	        colors: [{ name: "Midnight Black", hex: "#111111" }],
-	        sizes: ["S", "M", "L"],
-	      },
-	      cashmere: {
-	        badge: "Knitwear",
-	        title: "Cashmere Crewneck",
-	        reviews: "(58 Reviews)",
-	        price: "$275.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuBKRsTPHqnzmiLlQT6UJpkPFNyO_MC4TNYb8SLuuMT6eYVM26cT9KAJMjVQ1qZWuiqfIJzs66s0pT0Kd283kZj60MPLYqtTndM0cpkUqRHwhU7wS3BBgv6mWNsd1ufC4mvnDY_lBSgkqZOWwcnoMLrVFit4gZ4t7j3erTI0U5TjES76gjQHKOoL4Pyp_EcWeesh6GetZ1KXeMvU5n8YwQzEs_heAJKyYt2P3wc_hLNamSKoddmgUVxUJG1Ek392j3LSNcbQVF-imaw",
-	        colors: [{ name: "Sand Cashmere", hex: "#d8c3a5" }],
-	        sizes: ["XS", "S", "M", "L"],
-	      },
-	      "double-coat": {
-	        badge: "Outerwear",
-	        title: "Double-Breasted Coat",
-	        reviews: "(67 Reviews)",
-	        price: "$625.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuBcfj6mRnoWAMit-uw8PQAtxQvdlt-iqN_hTRSSJrdUS9RKiKInc0kGnFBpnmILN-0f7085ep0PsOJAyJvcjGQC0AZV2KDseDTQhXIaTE-tlE9PDpl_W1Kv-UkVY5CX9ErctWGn33f-niKBOXx6nxueMslAmGGb8tuaNbO0Qrfd4RvLWNdFAVLw0UQgLLlaiUx3sfstE9KfQ3B8zYjtRhP83jmvpfPPrcIaadZsR6ApcWrRZFI3epE9kosgUMpHTjmgyQrEcdQE2rE",
-	        colors: [{ name: "Deep Navy", hex: "#1f2f5d" }],
-	        sizes: ["M", "L"],
-	      },
-	      sneaker: {
-	        badge: "Footwear",
-	        title: "Leather Court Sneaker",
-	        reviews: "(88 Reviews)",
-	        price: "$180.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuAUUNay2PR3AwHLDUHjx5Rujo1UCiEsk-gFH6OzLEieQu0HBGKsjxnRrFB5OZsc9q7B5o67a2InJi-Tdd3qIOWFJq2Todw4uuvtMZHAi5Cbb1uGXJ2gchjbwXGMDIdDwnmlo3L8KdqDZgb5A0Qu_u9e7ub53CAEpBZQTvyypWWQWnUUmr678MIqY9wQ-sv4MxG_ZRTmCD0MHg1aCUsq0ed1nrSrjQKUfem5AQoxDdWafvYL29gZ9NLCvNCfLF1cHxUNhPawinAQQ3c",
-	        colors: [
-	          { name: "Optic White", hex: "#ffffff" },
-	          { name: "Electric Blue", hex: "#0040df" },
-	        ],
-	        sizes: ["EU 40", "EU 41", "EU 42", "EU 43", "EU 44", "EU 45"],
-	      },
-	      trousers: {
-	        badge: "Trousers",
-	        title: "Pleated Wide Trousers",
-	        reviews: "(49 Reviews)",
-	        price: "$225.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuDuE_74HpXg2xZnPmAtU1hwrFAGeUUQLliTQ98uEl4VGiqN3aWycidkTB9OjKPu8hN1UHEG7s1uuA-UExUb0ah0ExP54zzeiWKm1wphy34Jgbk9dJLA87Jx_dvpE7M7bebLb3gIK9A5kb_8oBjTvBaU9fTn6G4Pe35kkg4htY0qyX2bn5Dw_CMLN5YewQj2YFp-A-wnTrwWeORhL54bfahvB8uF9zyiI4qq17CAILQv3ZB8Jn2-TGmQsjtUqheDI91WHuoytYiCkE0",
-	        colors: [{ name: "Ash Gray", hex: "#9ca3af" }],
-	        sizes: ["XS", "S", "M", "L"],
-	      },
-	      "cloud-runner": {
-	        badge: "Footwear",
-	        title: "Cloud Runner",
-	        reviews: "(112 Reviews)",
-	        price: "$195.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuDC93J-Mi_uyRyUJEzeo2VUt3gCnx1KweKP_DA251be5VmSSPWzQiE3EhjkhxBwd55Gdn3J9N_12Bg5RS3V-OcMAmCzGyfEn-qdSteSk2Sm2QxMbfFQaTV2PYuxS-hkbx1W8FzSC8WNHMBlUvT6u9qRYmqskiYnAom81LJ-H0Fo81sIZgmqT2a5PI1sSigLrSXPZT1NqMpPwhbGMQ7KSvY-jFjHsUWYYIzRGNgt1QR5JJXBwnUKEJSA31X41LiJjnESmcWWo8QyvTc",
-	        colors: [
-	          { name: "Soft Gray", hex: "#c9ced6" },
-	          { name: "Optic White", hex: "#ffffff" },
-	        ],
-	        sizes: ["EU 40", "EU 41", "EU 42", "EU 43", "EU 44"],
-	      },
-	      "downtown-high-top": {
-	        badge: "Footwear",
-	        title: "Downtown High-Top",
-	        reviews: "(76 Reviews)",
-	        price: "$240.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuAjpeUssbT7HMtTqW4qyakzgJS1FiU-SwjRpIy1Tw9BZ6aW8dg1ia9mBEQTsXehCdnQ38ZNuPh-KwVqfaeAzAieT8_pSEHP2-gnuITMw24A-7ga_cJJtTAdWKtIKtSQB42G6Lq4ASqeKiDYxXOXIJ_svraHjMSC6L9xtrDwdUFYZMV5tu9rBzDSf-JQj_B9GQqtOtgotp4hmyshrGNnQ18q8fvkriRBUhxAH8NCNZuoL9oEZk47FOljzcP6gzOFg5XhTuuE5NEFFuA",
-	        colors: [{ name: "Mahogany Leather", hex: "#4b2e24" }],
-	        sizes: ["EU 40", "EU 41", "EU 42", "EU 43", "EU 44"],
-	      },
-	      "essential-tote": {
-	        badge: "Bags",
-	        title: "Essential Tote",
-	        reviews: "(44 Reviews)",
-	        price: "$375.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCZA8QsI1z-4yH3tVTcLmNVZSvq3xbj2ReUE6tr_ldz3pUm4x6nLz0K8UtTdzYAXvt7OIQ4lGi_6bYNDOyqL9I_QJVDOF48pDIH-Hl8svspIO25hllQki_zXnMSkeUILE1UWGtW97p85dErHOd_YKll0yV9E6Bw0WrAMHHHh88cflfziP3AfRvQ8HCNboloyIkI7rub2yxdcXDNddCggX3FjoxliU_zAL_I9FGwVFlgZKL2z8nMK2kpTSHbaQalI_DPVzFDIE-mzos",
-	        colors: [{ name: "Sand Leather", hex: "#d8c3a5" }],
-	        sizes: ["One Size"],
-	      },
-	      "mono-watch": {
-	        badge: "Accessories",
-	        title: "Mono-Chrome Watch",
-	        reviews: "(203 Reviews)",
-	        price: "$220.00",
-	        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuC4Z1PFbN5d5iX569B8_T5_giVQDfygycpDU7KE5ZeWXlQyLIJmRezROLUNVXqri-ol3nabfGSMPEJ4iCQRQ3T6ieAeILwdCX24kcjlMHyXEspuvHJa7qUNV4Ty59HPXyJstJCij6Din9uuEUaPdOqaoCdpTSzOijKAqnOB29zI02kZbQC29RivviKhLtFIO0S6vHSxpncfEwf_k_0GPHYo0IEKYDIqk8vh4-4e-BGwzb7smuC_FkCeST4f3apB7htMF-P6Mo4ECbE",
-	        colors: [{ name: "Brushed Silver", hex: "#c7c6c6" }],
-	        sizes: ["38 mm", "42 mm"],
-	      },
+        reviews: "(86 Reviews)",
+        price: "$495.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuBchUcD0EUx2j2iuPQpWTJiIV8_zw6fVXkrrcoW0NNOHi1SxdQu66MH8cT3G92PJljVOKIKgAIxyBfrzWWenQqSPhvb1LWVR7mApfsOtw2uz6Y0KuD0iE38tFoufpB9nbsctHFEUVTIfLvBiOPst0XZ0luxheHlGNr5fdlKJaBuMALpmJsNioBdRUkPlV9y0lbkOIJe3LmZLgRYbVi9X9cNiyeudwa6R7G7FYt8ukQkzQCN-Lq6ASZTwC8kocRV1qzT1TLfE4Ck0ws",
+        colors: [{ name: "Deep Navy", hex: "#1f2f5d" }],
+        sizes: ["S", "M", "L"],
+      },
+      heels: {
+        badge: "Footwear",
+        title: "Leather Artisan Pump",
+        reviews: "(64 Reviews)",
+        price: "$285.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCJnqionFY9y6EYbY_k4evRIJvyAUyoVg6PwXuwkjSxd9qMHcQnc8LWwRtP425gPIACwYi4BS5rEn6a0KGYC0FNUJvGW5DD0_kSsfAwo0JEcqudDivOu-ipKeVOJq6AGfrgwkWDX--L6eQ64NWowPC_RH-NzHnWgcRyYnqAasPBj1Kkzbs7jslOeGddj7tOwH78WBLt_Aj94R2TFl-YneG96_bN-w1tvvuaSkU-DBLuCJN2XQosE_KpP5P8hSYeH9aEujzdyJQhAKA",
+        colors: [{ name: "Black Leather", hex: "#111111" }],
+        sizes: ["EU 36", "EU 37", "EU 38", "EU 39", "EU 40"],
+      },
+      tote: {
+        badge: "Bags",
+        title: "Structural Leather Tote",
+        reviews: "(52 Reviews)",
+        price: "$425.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCQPtWo0O_h25ZD-uqlJNUOw_CMG6SjaIqwAdS7fF4-9zejORMZ_NS2z4p6KnILnMjKol4ArgZXQDMligjx1c4OZfzlnKZ0QCj3wVXujPKAC1OmvFlLDAwsIRshZBPok04K30_grPaCoCynebD3yteoWChW4NTJTnO3_ms3Qj_z61YdTuKy8wujCaIbt_2-hq2cf1tvvkCCTGkhrSYwJaECUQpkz1Nc7H3rbZ475nBm59md7IDO_JiPOxvWsjB_tlGvr5_oX2AaDRs",
+        colors: [{ name: "Cream Leather", hex: "#e8dfd2" }],
+        sizes: ["One Size"],
+      },
+      gown: {
+        badge: "Dresses",
+        title: "Silk Evening Gown",
+        reviews: "(71 Reviews)",
+        price: "$690.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuDyT9BhCFk-MjJkEIVTVNYLmb1QxR0SY6MzQjKyVpH6ALokWVkyTHfXcL2ePj0kD36BSmDQ2m1UX1l9b4U2Tdu6Ux_Jwi1oNQSi08hC2M2BgKgNtq5cjSrCZV5A51TrT7tgWxx1dIIwS_fPxiRfi1HDyR9tLER9Vb2k5gL75JToaQ-7z0vD5JDn-D6NuRPHrHGIS4-DIAHKY57ZRJ0l3agSH1MbIGmaB2agVwG8Mxy37aKCRpprkhttpXXdfeoWXyvTErZQS8kAyv4",
+        colors: [{ name: "Ivory Silk", hex: "#f6f1e8" }],
+        sizes: ["S", "M", "L"],
+      },
+      shirt: {
+        badge: "Shirts & Tops",
+        title: "Structured Poplin Shirt",
+        reviews: "(39 Reviews)",
+        price: "$145.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCrgWwcqbnGCbjTzZ_L6va3PhP4cf4IkTCLovTQVVQ21uNl8Z-iAYJCbtNUwdrpW52ANcPOZwSBpeAkbpFZnb0-vmkLpg0C_vW6vRxtMZj6gBIA2DX3yK8ePkauxAxka-V-BfxLiFYxmc6Mx5JHfFpx3WxafijUCHffhouLljkrx8EiJup7kTSg2xicdPlld859d7hAUJTEWheTEcKB3y6rjnpquQM6TXl1jopT4NOnhBwGC5VSLaG6XmWgnXyjf0PVwYVyU0-uFaM",
+        colors: [{ name: "Optic White", hex: "#ffffff" }],
+        sizes: ["S", "M", "L"],
+      },
+      "moto-jacket": {
+        badge: "Outerwear",
+        title: "Asymmetric Moto Jacket",
+        reviews: "(95 Reviews)",
+        price: "$895.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCTQq3n3DCDOOp4uvO55s47vNfLVHaHL4RRpmQqKOoCNfugHrUSjaTDkAo5K3YISIbA7a6jPcUShZsJ2Kg4juASweAYhtFdUprZXKWLmzBEBqEGrcYqOd5n_2XbRfHpRdAIXuQ_gktPbMPRiK3WoC9oUbfmD9gEkBh2mvSxQF4TL5GvJomBfX-CHRr8oP2nWafsoDLJB-Z1Ip4V9yuEAU8yFbdTe2Vn1fUWblpq2vamVyaLdv6edctwOp1ntp-15r6hJZVsMpz5A6U",
+        colors: [{ name: "Midnight Black", hex: "#111111" }],
+        sizes: ["S", "M", "L"],
+      },
+      cashmere: {
+        badge: "Knitwear",
+        title: "Cashmere Crewneck",
+        reviews: "(58 Reviews)",
+        price: "$275.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuBKRsTPHqnzmiLlQT6UJpkPFNyO_MC4TNYb8SLuuMT6eYVM26cT9KAJMjVQ1qZWuiqfIJzs66s0pT0Kd283kZj60MPLYqtTndM0cpkUqRHwhU7wS3BBgv6mWNsd1ufC4mvnDY_lBSgkqZOWwcnoMLrVFit4gZ4t7j3erTI0U5TjES76gjQHKOoL4Pyp_EcWeesh6GetZ1KXeMvU5n8YwQzEs_heAJKyYt2P3wc_hLNamSKoddmgUVxUJG1Ek392j3LSNcbQVF-imaw",
+        colors: [{ name: "Sand Cashmere", hex: "#d8c3a5" }],
+        sizes: ["XS", "S", "M", "L"],
+      },
+      "double-coat": {
+        badge: "Outerwear",
+        title: "Double-Breasted Coat",
+        reviews: "(67 Reviews)",
+        price: "$625.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuBcfj6mRnoWAMit-uw8PQAtxQvdlt-iqN_hTRSSJrdUS9RKiKInc0kGnFBpnmILN-0f7085ep0PsOJAyJvcjGQC0AZV2KDseDTQhXIaTE-tlE9PDpl_W1Kv-UkVY5CX9ErctWGn33f-niKBOXx6nxueMslAmGGb8tuaNbO0Qrfd4RvLWNdFAVLw0UQgLLlaiUx3sfstE9KfQ3B8zYjtRhP83jmvpfPPrcIaadZsR6ApcWrRZFI3epE9kosgUMpHTjmgyQrEcdQE2rE",
+        colors: [{ name: "Deep Navy", hex: "#1f2f5d" }],
+        sizes: ["M", "L"],
+      },
+      sneaker: {
+        badge: "Footwear",
+        title: "Leather Court Sneaker",
+        reviews: "(88 Reviews)",
+        price: "$180.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuAUUNay2PR3AwHLDUHjx5Rujo1UCiEsk-gFH6OzLEieQu0HBGKsjxnRrFB5OZsc9q7B5o67a2InJi-Tdd3qIOWFJq2Todw4uuvtMZHAi5Cbb1uGXJ2gchjbwXGMDIdDwnmlo3L8KdqDZgb5A0Qu_u9e7ub53CAEpBZQTvyypWWQWnUUmr678MIqY9wQ-sv4MxG_ZRTmCD0MHg1aCUsq0ed1nrSrjQKUfem5AQoxDdWafvYL29gZ9NLCvNCfLF1cHxUNhPawinAQQ3c",
+        colors: [
+          { name: "Optic White", hex: "#ffffff" },
+          { name: "Electric Blue", hex: "#0040df" },
+        ],
+        sizes: ["EU 40", "EU 41", "EU 42", "EU 43", "EU 44", "EU 45"],
+      },
+      trousers: {
+        badge: "Trousers",
+        title: "Pleated Wide Trousers",
+        reviews: "(49 Reviews)",
+        price: "$225.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuDuE_74HpXg2xZnPmAtU1hwrFAGeUUQLliTQ98uEl4VGiqN3aWycidkTB9OjKPu8hN1UHEG7s1uuA-UExUb0ah0ExP54zzeiWKm1wphy34Jgbk9dJLA87Jx_dvpE7M7bebLb3gIK9A5kb_8oBjTvBaU9fTn6G4Pe35kkg4htY0qyX2bn5Dw_CMLN5YewQj2YFp-A-wnTrwWeORhL54bfahvB8uF9zyiI4qq17CAILQv3ZB8Jn2-TGmQsjtUqheDI91WHuoytYiCkE0",
+        colors: [{ name: "Ash Gray", hex: "#9ca3af" }],
+        sizes: ["XS", "S", "M", "L"],
+      },
+      "cloud-runner": {
+        badge: "Footwear",
+        title: "Cloud Runner",
+        reviews: "(112 Reviews)",
+        price: "$195.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuDC93J-Mi_uyRyUJEzeo2VUt3gCnx1KweKP_DA251be5VmSSPWzQiE3EhjkhxBwd55Gdn3J9N_12Bg5RS3V-OcMAmCzGyfEn-qdSteSk2Sm2QxMbfFQaTV2PYuxS-hkbx1W8FzSC8WNHMBlUvT6u9qRYmqskiYnAom81LJ-H0Fo81sIZgmqT2a5PI1sSigLrSXPZT1NqMpPwhbGMQ7KSvY-jFjHsUWYYIzRGNgt1QR5JJXBwnUKEJSA31X41LiJjnESmcWWo8QyvTc",
+        colors: [
+          { name: "Soft Gray", hex: "#c9ced6" },
+          { name: "Optic White", hex: "#ffffff" },
+        ],
+        sizes: ["EU 40", "EU 41", "EU 42", "EU 43", "EU 44"],
+      },
+      "downtown-high-top": {
+        badge: "Footwear",
+        title: "Downtown High-Top",
+        reviews: "(76 Reviews)",
+        price: "$240.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuAjpeUssbT7HMtTqW4qyakzgJS1FiU-SwjRpIy1Tw9BZ6aW8dg1ia9mBEQTsXehCdnQ38ZNuPh-KwVqfaeAzAieT8_pSEHP2-gnuITMw24A-7ga_cJJtTAdWKtIKtSQB42G6Lq4ASqeKiDYxXOXIJ_svraHjMSC6L9xtrDwdUFYZMV5tu9rBzDSf-JQj_B9GQqtOtgotp4hmyshrGNnQ18q8fvkriRBUhxAH8NCNZuoL9oEZk47FOljzcP6gzOFg5XhTuuE5NEFFuA",
+        colors: [{ name: "Mahogany Leather", hex: "#4b2e24" }],
+        sizes: ["EU 40", "EU 41", "EU 42", "EU 43", "EU 44"],
+      },
+      "essential-tote": {
+        badge: "Bags",
+        title: "Essential Tote",
+        reviews: "(44 Reviews)",
+        price: "$375.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuCZA8QsI1z-4yH3tVTcLmNVZSvq3xbj2ReUE6tr_ldz3pUm4x6nLz0K8UtTdzYAXvt7OIQ4lGi_6bYNDOyqL9I_QJVDOF48pDIH-Hl8svspIO25hllQki_zXnMSkeUILE1UWGtW97p85dErHOd_YKll0yV9E6Bw0WrAMHHHh88cflfziP3AfRvQ8HCNboloyIkI7rub2yxdcXDNddCggX3FjoxliU_zAL_I9FGwVFlgZKL2z8nMK2kpTSHbaQalI_DPVzFDIE-mzos",
+        colors: [{ name: "Sand Leather", hex: "#d8c3a5" }],
+        sizes: ["One Size"],
+      },
+      "mono-watch": {
+        badge: "Accessories",
+        title: "Mono-Chrome Watch",
+        reviews: "(203 Reviews)",
+        price: "$220.00",
+        mainImage: "https://lh3.googleusercontent.com/aida-public/AB6AXuC4Z1PFbN5d5iX569B8_T5_giVQDfygycpDU7KE5ZeWXlQyLIJmRezROLUNVXqri-ol3nabfGSMPEJ4iCQRQ3T6ieAeILwdCX24kcjlMHyXEspuvHJa7qUNV4Ty59HPXyJstJCij6Din9uuEUaPdOqaoCdpTSzOijKAqnOB29zI02kZbQC29RivviKhLtFIO0S6vHSxpncfEwf_k_0GPHYo0IEKYDIqk8vh4-4e-BGwzb7smuC_FkCeST4f3apB7htMF-P6Mo4ECbE",
+        colors: [{ name: "Brushed Silver", hex: "#c7c6c6" }],
+        sizes: ["38 mm", "42 mm"],
+      },
     };
 
     const selected = products[productId];
@@ -1302,38 +1460,41 @@
     const mainImageEl = document.querySelector("[data-product-main-image]");
     const thumbOneEl = document.querySelector("[data-product-thumb-1]");
     const thumbTwoEl = document.querySelector("[data-product-thumb-2]");
-	    const detailOne = document.querySelector("[data-product-detail-1]");
-	    const detailTwo = document.querySelector("[data-product-detail-2]");
-	    const detailThree = document.querySelector("[data-product-detail-3]");
-	    const addToBag = document.querySelector("[data-add-to-bag]");
-	    const colorGroup = document.querySelector("[data-product-colors]");
-	    const colorLabel = document.querySelector("[data-selected-color]");
-	    const sizeGroup = document.querySelector("[data-product-sizes]");
-	    const sizeLabel = document.querySelector("[data-selected-size]");
-	    const sizeGuideTrigger = document.querySelector("[data-size-guide]");
-	    const wishlist = document.querySelector("[data-wishlist]");
-	    const colorOptions = getProductColorOptions(productId, selected.mainImage, selected.colors);
-	    const selectedImage = colorOptions[0]?.image || selected.mainImage;
-	    const sizeGuideKind = getProductSizeGuideKind(productId, selected);
-	    const selectedPrice = parseUsdPrice(selected.price);
+    const detailOne = document.querySelector("[data-product-detail-1]");
+    const detailTwo = document.querySelector("[data-product-detail-2]");
+    const detailThree = document.querySelector("[data-product-detail-3]");
+    const addToBag = document.querySelector("[data-add-to-bag]");
+    const colorGroup = document.querySelector("[data-product-colors]");
+    const colorLabel = document.querySelector("[data-selected-color]");
+    const sizeGroup = document.querySelector("[data-product-sizes]");
+    const sizeLabel = document.querySelector("[data-selected-size]");
+    const sizeGuideTrigger = document.querySelector("[data-size-guide]");
+    const wishlist = document.querySelector("[data-wishlist]");
+    const colorOptions = getProductColorOptions(productId, selected.mainImage, selected.colors);
+    const selectedImage = colorOptions[0]?.image || selected.mainImage;
+    const sizeGuideKind = getProductSizeGuideKind(productId, selected);
+    const selectedPrice = parseUsdPrice(selected.price);
 
-	    if (badgeEl) badgeEl.textContent = selected.badge;
-	    titleEl.textContent = selected.title;
-	    if (reviewsEl) reviewsEl.textContent = selected.reviews;
-	    if (priceEl) {
-	      priceEl.dataset.usdPrice = String(selectedPrice);
-	      priceEl.textContent = selected.price;
-	    }
-	    if (mainImageEl) mainImageEl.src = selectedImage;
-	    if (thumbOneEl) thumbOneEl.src = selectedImage;
-	    if (thumbTwoEl) thumbTwoEl.src = selectedImage;
-	    renderProductColors(colorGroup, colorLabel, colorOptions, selectedImage);
-	    renderProductSizes(sizeGroup, sizeLabel, selected.sizes);
-	    if (sizeGuideTrigger) {
-	      sizeGuideTrigger.dataset.sizeGuideKind = sizeGuideKind;
-	      sizeGuideTrigger.dataset.sizeGuideTitle = selected.title;
-	    }
-	    if (detailOne) detailOne.textContent = `Premium construction tailored for ${selected.title.toLowerCase()}.`;
+    if (badgeEl) badgeEl.textContent = selected.badge;
+    titleEl.textContent = selected.title;
+    if (reviewsEl) reviewsEl.textContent = selected.reviews;
+    if (priceEl) {
+      priceEl.dataset.usdPrice = String(selectedPrice);
+      priceEl.textContent = selected.price;
+    }
+    [mainImageEl, thumbOneEl, thumbTwoEl].forEach((image) => {
+      if (image) {
+        image.src = selectedImage;
+        image.alt = selected.title;
+      }
+    });
+    renderProductColors(colorGroup, colorLabel, colorOptions, selectedImage);
+    renderProductSizes(sizeGroup, sizeLabel, selected.sizes);
+    if (sizeGuideTrigger) {
+      sizeGuideTrigger.dataset.sizeGuideKind = sizeGuideKind;
+      sizeGuideTrigger.dataset.sizeGuideTitle = selected.title;
+    }
+    if (detailOne) detailOne.textContent = `Premium construction tailored for ${selected.title.toLowerCase()}.`;
     if (detailTwo) detailTwo.textContent = "Designed for comfort, longevity, and modern daily wear.";
     if (detailThree) detailThree.textContent = "Finished with refined materials and precision detailing.";
     if (addToBag) {
@@ -1358,20 +1519,20 @@
 
     if (colorGroup) {
       colorGroup.querySelectorAll("[data-color-name]").forEach((button) => {
-	        button.addEventListener("click", () => {
-	          colorGroup.querySelectorAll("[data-color-name]").forEach((option) => option.classList.remove("is-selected"));
-	          button.classList.add("is-selected");
-	          if (colorLabel) {
-	            colorLabel.textContent = button.dataset.colorName;
-	          }
-	          if (button.dataset.colorImage) {
-	            document.querySelectorAll("[data-product-main-image], [data-product-thumb-1], [data-product-thumb-2]").forEach((image) => {
-	              image.src = button.dataset.colorImage;
-	            });
-	          }
-	        });
-	      });
-	    }
+        button.addEventListener("click", () => {
+          colorGroup.querySelectorAll("[data-color-name]").forEach((option) => option.classList.remove("is-selected"));
+          button.classList.add("is-selected");
+          if (colorLabel) {
+            colorLabel.textContent = button.dataset.colorName;
+          }
+          if (button.dataset.colorImage) {
+            document.querySelectorAll("[data-product-main-image], [data-product-thumb-1], [data-product-thumb-2]").forEach((image) => {
+              image.src = button.dataset.colorImage;
+            });
+          }
+        });
+      });
+    }
 
     if (sizeGroup) {
       sizeGroup.querySelectorAll("[data-size]").forEach((button) => {
@@ -1434,6 +1595,7 @@
           const cart = readCart();
         cart.push({
           id: String(Date.now()),
+          productId: wishlist?.dataset.productId || new URLSearchParams(window.location.search).get("product") || "",
           name,
           price,
           image,
@@ -1620,6 +1782,7 @@
       }
     });
     renderLineItems();
+    window.addEventListener("luxe:cart-updated", renderLineItems);
 
     // Address Label Button Selector Setup
     let selectedAddressLabel = "Home";
@@ -1638,14 +1801,7 @@
     });
 
     // Saved Addresses Dropdown Prefill Bindings
-    let savedProfile = null;
-    try {
-      const raw = localStorage.getItem("luxe:profile");
-      if (raw) {
-        savedProfile = JSON.parse(raw);
-      }
-    } catch (e) {}
-
+    let savedProfile = readProfile();
     const addressSelectContainer = document.getElementById("saved-addresses-selector-container");
     const addressSelect = document.getElementById("saved-addresses-select");
     const fieldFirstName = document.querySelector('input[name="first_name"]');
@@ -1654,8 +1810,13 @@
     const fieldCity = document.querySelector('input[name="city"]');
     const fieldPostal = document.querySelector('input[name="postal_code"]');
 
-    if (savedProfile && Array.isArray(savedProfile.addresses) && savedProfile.addresses.length > 0) {
-      if (addressSelectContainer && addressSelect) {
+    const populateSavedAddresses = (profile) => {
+      savedProfile = profile && typeof profile === "object" ? profile : null;
+      if (!addressSelectContainer || !addressSelect) {
+        return;
+      }
+
+      if (savedProfile && Array.isArray(savedProfile.addresses) && savedProfile.addresses.length > 0) {
         addressSelectContainer.classList.remove("hidden");
         addressSelect.innerHTML = `<option value="new">-- Enter New Address --</option>`;
         savedProfile.addresses.forEach((addr, idx) => {
@@ -1665,31 +1826,42 @@
           addressSelect.appendChild(opt);
         });
 
-        addressSelect.addEventListener("change", (e) => {
-          const val = e.target.value;
-          if (val === "new") {
-            if (fieldFirstName) fieldFirstName.value = "";
-            if (fieldLastName) fieldLastName.value = "";
-            if (fieldAddress) fieldAddress.value = "";
-            if (fieldCity) fieldCity.value = "";
-            if (fieldPostal) fieldPostal.value = "";
-            const homeBtn = document.querySelector('[data-address-label="Home"]');
-            if (homeBtn) homeBtn.click();
-          } else {
-            const addr = savedProfile.addresses[parseInt(val, 10)];
-            if (addr) {
-              if (fieldFirstName) fieldFirstName.value = addr.first_name || "";
-              if (fieldLastName) fieldLastName.value = addr.last_name || "";
-              if (fieldAddress) fieldAddress.value = addr.address_line || "";
-              if (fieldCity) fieldCity.value = addr.city || "";
-              if (fieldPostal) fieldPostal.value = addr.postal_code || "";
-              const matchingBtn = document.querySelector(`[data-address-label="${addr.label}"]`);
-              if (matchingBtn) matchingBtn.click();
-            }
-          }
-        });
+        addressSelect.value = "new";
+      } else {
+        addressSelectContainer.classList.add("hidden");
+        addressSelect.innerHTML = `<option value="new">-- Enter New Address --</option>`;
       }
+    };
+
+    if (addressSelect) {
+      addressSelect.addEventListener("change", (e) => {
+        const val = e.target.value;
+        if (val === "new") {
+          if (fieldFirstName) fieldFirstName.value = "";
+          if (fieldLastName) fieldLastName.value = "";
+          if (fieldAddress) fieldAddress.value = "";
+          if (fieldCity) fieldCity.value = "";
+          if (fieldPostal) fieldPostal.value = "";
+          const homeBtn = document.querySelector('[data-address-label="Home"]');
+          if (homeBtn) homeBtn.click();
+          return;
+        }
+
+        const addr = savedProfile?.addresses?.[parseInt(val, 10)];
+        if (addr) {
+          if (fieldFirstName) fieldFirstName.value = addr.first_name || "";
+          if (fieldLastName) fieldLastName.value = addr.last_name || "";
+          if (fieldAddress) fieldAddress.value = addr.address_line || "";
+          if (fieldCity) fieldCity.value = addr.city || "";
+          if (fieldPostal) fieldPostal.value = addr.postal_code || "";
+          const matchingBtn = document.querySelector(`[data-address-label="${addr.label}"]`);
+          if (matchingBtn) matchingBtn.click();
+        }
+      });
     }
+
+    populateSavedAddresses(savedProfile);
+    window.addEventListener("luxe:profile-updated", (event) => populateSavedAddresses(event.detail));
 
     const complete = document.querySelector("[data-complete-purchase]");
     if (complete) {
@@ -1717,14 +1889,7 @@
         }
 
         // Prefill user profile if logged in
-        let currentProfile = null;
-        try {
-          const rawProfile = localStorage.getItem("luxe:profile");
-          if (rawProfile) {
-            currentProfile = JSON.parse(rawProfile);
-          }
-        } catch(e) {}
-
+        const currentProfile = readProfile();
         const emailField = document.getElementById("checkout-otp-email");
         const phoneField = document.getElementById("checkout-otp-phone");
         if (currentProfile) {
@@ -1791,7 +1956,7 @@
       // Step 1 -> Step 2
       let currentMockOtp = "";
       const sendOtpBtn = otpModal.querySelector("[data-send-otp-btn]");
-      sendOtpBtn.addEventListener("click", () => {
+      sendOtpBtn.addEventListener("click", async () => {
         const emailField = document.getElementById("checkout-otp-email");
         const phoneField = document.getElementById("checkout-otp-phone");
         const emailVal = emailField.value.trim();
@@ -1809,16 +1974,26 @@
           return;
         }
 
-        // Simulate sending OTP
-        currentMockOtp = String(Math.floor(1000 + Math.random() * 9000));
-        
+        sendOtpBtn.disabled = true;
+        try {
+          const payload = await apiRequest("request_otp", {
+            method: "POST",
+            body: { email: emailVal, phone: phoneVal },
+          });
+          currentMockOtp = payload.debug_code ? String(payload.debug_code) : "";
+        } catch (error) {
+          currentMockOtp = String(Math.floor(1000 + Math.random() * 9000));
+        } finally {
+          sendOtpBtn.disabled = false;
+        }
+
         document.getElementById("display-email").textContent = emailVal;
         document.getElementById("display-phone").textContent = phoneVal;
-        document.getElementById("mock-otp-display").textContent = currentMockOtp;
+        document.getElementById("mock-otp-display").textContent = currentMockOtp || "sent";
 
         document.getElementById("otp-modal-step-1").classList.add("hidden");
         document.getElementById("otp-modal-step-2").classList.remove("hidden");
-        
+
         const otpInput = document.getElementById("checkout-otp-input");
         if (otpInput) {
           otpInput.value = "";
@@ -1835,86 +2010,128 @@
 
       // Verify OTP
       const verifyOtpBtn = otpModal.querySelector("[data-verify-otp-btn]");
-      verifyOtpBtn.addEventListener("click", () => {
+      verifyOtpBtn.addEventListener("click", async () => {
         const otpInput = document.getElementById("checkout-otp-input");
         const codeVal = otpInput.value.trim();
-        if (codeVal !== currentMockOtp) {
-          showToast("Invalid verification code. Please check and try again.", "error");
-          otpInput.classList.add("border-error");
-          otpInput.focus();
-          return;
-        }
 
-        otpInput.classList.remove("border-error");
-
-        // Complete Purchase!
         const emailField = document.getElementById("checkout-otp-email");
         const phoneField = document.getElementById("checkout-otp-phone");
         const emailVal = emailField.value.trim();
         const phoneVal = phoneField.value.trim();
-
-        // 1. Link to profile
-        let profile = {
-          email: emailVal,
-          phone: phoneVal,
-          addresses: [],
-          orders: []
-        };
-        try {
-          const rawProfile = localStorage.getItem("luxe:profile");
-          if (rawProfile) {
-            const parsed = JSON.parse(rawProfile);
-            if (parsed && typeof parsed === "object") {
-              profile.addresses = Array.isArray(parsed.addresses) ? parsed.addresses : [];
-              profile.orders = Array.isArray(parsed.orders) ? parsed.orders : [];
-            }
-          }
-        } catch(e) {}
-
         const firstNameVal = document.querySelector('input[name="first_name"]')?.value?.trim() || "";
         const lastNameVal = document.querySelector('input[name="last_name"]')?.value?.trim() || "";
         const addressLineVal = document.querySelector('input[name="address"]')?.value?.trim() || "";
         const cityVal = document.querySelector('input[name="city"]')?.value?.trim() || "";
         const postalCodeVal = document.querySelector('input[name="postal_code"]')?.value?.trim() || "";
+        const cart = readCart();
+        const orderTotal = subtotalAmount + taxAmount + shippingCost;
+        const shippingAddress = {
+          id: String(Date.now()),
+          label: selectedAddressLabel,
+          first_name: firstNameVal,
+          last_name: lastNameVal,
+          address_line: addressLineVal,
+          city: cityVal,
+          postal_code: postalCodeVal
+        };
 
-        // Add this address to user profile
-        if (firstNameVal && addressLineVal) {
-          const shippingAddress = {
-            id: String(Date.now()),
-            label: selectedAddressLabel,
-            first_name: firstNameVal,
-            last_name: lastNameVal,
-            address_line: addressLineVal,
-            city: cityVal,
-            postal_code: postalCodeVal
-          };
-          const existingAddrIdx = profile.addresses.findIndex(addr => addr.label.toLowerCase() === selectedAddressLabel.toLowerCase());
-          if (existingAddrIdx > -1) {
-            profile.addresses[existingAddrIdx] = shippingAddress;
-          } else {
-            profile.addresses.push(shippingAddress);
+        verifyOtpBtn.disabled = true;
+        let profile = null;
+        let verifiedWithBackend = false;
+
+        try {
+          const verified = await apiRequest("verify_otp", {
+            method: "POST",
+            body: { email: emailVal, phone: phoneVal, code: codeVal },
+          });
+          verifiedWithBackend = true;
+          if (verified.profile) {
+            writeProfileCache(verified.profile);
+          }
+        } catch (error) {
+          if (!currentMockOtp || codeVal !== currentMockOtp) {
+            verifyOtpBtn.disabled = false;
+            showToast("Invalid verification code. Please check and try again.", "error");
+            otpInput.classList.add("border-error");
+            otpInput.focus();
+            return;
           }
         }
 
-        const cart = readCart();
-        const orderTotal = subtotalAmount + taxAmount + shippingCost;
-        const newOrder = {
-          id: "LX-" + Math.floor(100000 + Math.random() * 900000),
-          date: new Date().toLocaleDateString("en-US", { year: 'numeric', month: 'short', day: 'numeric' }),
-          items: cart.map(item => ({
-            name: item.name,
-            price: item.price,
-            meta: item.meta,
-            image: item.image
-          })),
-          total: orderTotal
-        };
+        otpInput.classList.remove("border-error");
 
-        profile.orders.unshift(newOrder);
-        localStorage.setItem("luxe:profile", JSON.stringify(profile));
+        if (verifiedWithBackend) {
+          try {
+            const created = await apiRequest("orders/create", {
+              method: "POST",
+              body: {
+                address: shippingAddress,
+                items: cart,
+                subtotal: subtotalAmount,
+                shipping: shippingCost,
+                tax: taxAmount,
+                total: orderTotal,
+              },
+            });
+            profile = created.profile || readProfile();
+            if (profile) {
+              writeProfileCache(profile);
+              dispatchProfileUpdated(profile);
+            }
+            writeCartCache(Array.isArray(created.cart) ? created.cart : []);
+          } catch (error) {
+            verifyOtpBtn.disabled = false;
+            showToast(error.message || "Could not save the order to the backend.", "error");
+            return;
+          }
+        } else {
+          profile = readProfile() || {
+            email: emailVal,
+            phone: phoneVal,
+            addresses: [],
+            orders: []
+          };
+          profile.email = emailVal;
+          profile.phone = phoneVal;
+          profile.addresses = Array.isArray(profile.addresses) ? profile.addresses : [];
+          profile.orders = Array.isArray(profile.orders) ? profile.orders : [];
+
+          if (firstNameVal && addressLineVal) {
+            const existingAddrIdx = profile.addresses.findIndex(
+              (addr) => addr.label.toLowerCase() === selectedAddressLabel.toLowerCase()
+            );
+            if (existingAddrIdx > -1) {
+              profile.addresses[existingAddrIdx] = shippingAddress;
+            } else {
+              profile.addresses.push(shippingAddress);
+            }
+          }
+
+          profile.orders.unshift({
+            id: "LX-" + Math.floor(100000 + Math.random() * 900000),
+            date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
+            items: cart.map(item => ({
+              productId: item.productId,
+              name: item.name,
+              price: item.price,
+              meta: item.meta,
+              image: item.image
+            })),
+            total: orderTotal
+          });
+          writeProfileCache(profile);
+          dispatchProfileUpdated(profile);
+          writeCartCache([]);
+        }
+
+        verifyOtpBtn.disabled = false;
 
         // 2. Clear state
-        writeCart([]);
+        if (verifiedWithBackend) {
+          writeCartCache([]);
+        } else {
+          writeCart([]);
+        }
         updateBagCountDisplay();
         renderLineItems();
         if (options[0]) {
@@ -1922,16 +2139,8 @@
         }
 
         // Re-initialize selector prefill dropdown
-        if (addressSelectContainer && addressSelect) {
-          addressSelectContainer.classList.remove("hidden");
-          addressSelect.innerHTML = `<option value="new">-- Enter New Address --</option>`;
-          profile.addresses.forEach((addr, idx) => {
-            const opt = document.createElement("option");
-            opt.value = idx;
-            opt.textContent = `${addr.label} - ${addr.first_name} ${addr.last_name}, ${addr.address_line}`;
-            addressSelect.appendChild(opt);
-          });
-          addressSelect.value = "new";
+        if (profile) {
+          populateSavedAddresses(profile);
         }
 
         otpModal.classList.remove("is-open");
@@ -1947,21 +2156,23 @@
         return;
       }
 
-	      const host = trigger.closest("[data-cart-name]");
-	      let name = host?.dataset.cartName?.trim();
-	      let price = Number(host?.dataset.cartPrice || 0);
-	      let image = host?.dataset.cartImage || "";
-	      let meta = "Qty: 1";
+      const host = trigger.closest("[data-cart-name]");
+      let name = host?.dataset.cartName?.trim();
+      let price = Number(host?.dataset.cartPrice || 0);
+      let image = host?.dataset.cartImage || "";
+      let meta = "Qty: 1";
+      let productId = host ? getProductIdFromCard(host) : "";
 
-	      if (!name) {
-	        const card = trigger.closest("[data-collection-product]");
-	        if (card) {
-	          name = card.querySelector("h3")?.textContent?.trim() || "Item";
-	          price = Number(card.dataset.price || 0);
-	          image = card.querySelector("img")?.getAttribute("src") || "";
-	          meta = card.dataset.activeColor ? `Color: ${card.dataset.activeColor}` : meta;
-	        }
-	      }
+      if (!name) {
+        const card = trigger.closest("[data-collection-product]");
+        if (card) {
+          productId = getProductIdFromCard(card);
+          name = card.querySelector("h3")?.textContent?.trim() || "Item";
+          price = Number(card.dataset.price || 0);
+          image = card.querySelector("img")?.getAttribute("src") || "";
+          meta = card.dataset.activeColor ? `Color: ${card.dataset.activeColor}` : meta;
+        }
+      }
 
       if (!name || !price) {
         return;
@@ -1971,11 +2182,12 @@
         const cart = readCart();
         cart.push({
           id: String(Date.now()),
-	          name,
-	          price,
-	          image,
-	          meta,
-	        });
+          productId,
+          name,
+          price,
+          image,
+          meta,
+        });
         writeCart(cart);
       } catch (error) {
         // ignore
@@ -2001,7 +2213,7 @@
                 <span class="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
-            
+
             <!-- Profile Active View (Logged In) -->
             <div id="profile-logged-in" class="space-y-md hidden">
               <div class="flex items-center gap-md p-md bg-surface-container-low rounded-lg border border-outline-variant/20">
@@ -2022,7 +2234,7 @@
                     <span class="material-symbols-outlined text-[16px]">add</span> Add Address
                   </button>
                 </div>
-                
+
                 <!-- Add Address Form (Hidden by default) -->
                 <div id="profile-address-form-container" class="hidden p-sm bg-surface-container-low rounded-lg border border-outline-variant/30 space-y-sm">
                   <h4 class="font-label-md text-label-md text-on-surface font-semibold">New Address</h4>
@@ -2100,8 +2312,9 @@
 
     const accountBtns = document.querySelectorAll('a[aria-label="Account"]');
     accountBtns.forEach(btn => {
-      btn.addEventListener("click", (event) => {
+      btn.addEventListener("click", async (event) => {
         event.preventDefault();
+        await initBackendState();
         openProfileModal();
       });
     });
@@ -2146,7 +2359,7 @@
     }
 
     if (saveAddressBtn) {
-      saveAddressBtn.addEventListener("click", () => {
+      saveAddressBtn.addEventListener("click", async () => {
         const first = profileModal.querySelector("#modal-addr-first").value.trim();
         const last = profileModal.querySelector("#modal-addr-last").value.trim();
         const line = profileModal.querySelector("#modal-addr-line").value.trim();
@@ -2158,11 +2371,7 @@
           return;
         }
 
-        let profile = null;
-        try {
-          const raw = localStorage.getItem("luxe:profile");
-          if (raw) profile = JSON.parse(raw);
-        } catch (e) {}
+        let profile = readProfile();
 
         if (profile) {
           if (!profile.addresses) profile.addresses = [];
@@ -2183,7 +2392,18 @@
             profile.addresses.push(newAddr);
           }
 
-          localStorage.setItem("luxe:profile", JSON.stringify(profile));
+          try {
+            const saved = await apiRequest("addresses/save", {
+              method: "POST",
+              body: { address: newAddr },
+            });
+            profile = saved.profile || profile;
+          } catch (error) {
+            // Keep the local profile cache usable if the backend is offline.
+          }
+
+          writeProfileCache(profile);
+          dispatchProfileUpdated(profile);
           showToast("Address saved successfully.");
           addressFormContainer.classList.add("hidden");
           openProfileModal();
@@ -2193,19 +2413,23 @@
 
     const addrListContainer = profileModal.querySelector("#profile-addresses-list");
     if (addrListContainer) {
-      addrListContainer.addEventListener("click", (e) => {
+      addrListContainer.addEventListener("click", async (e) => {
         const deleteBtn = e.target.closest("[data-delete-address]");
         if (deleteBtn) {
           const addrId = deleteBtn.dataset.deleteAddress;
-          let profile = null;
+          let profile = readProfile();
           try {
-            const raw = localStorage.getItem("luxe:profile");
-            if (raw) profile = JSON.parse(raw);
+            const deleted = await apiRequest("addresses/delete", {
+              method: "POST",
+              body: { id: addrId },
+            });
+            profile = deleted.profile || profile;
           } catch (e) {}
 
           if (profile && Array.isArray(profile.addresses)) {
             profile.addresses = profile.addresses.filter(addr => addr.id !== addrId);
-            localStorage.setItem("luxe:profile", JSON.stringify(profile));
+            writeProfileCache(profile);
+            dispatchProfileUpdated(profile);
             showToast("Address removed.");
             openProfileModal();
           }
@@ -2238,6 +2462,7 @@
       const cart = readCart();
       cart.push({
         id: String(Date.now()),
+        productId: item.id || "",
         name: item.name,
         price: Number(item.price || 0),
         image: item.image || "",
@@ -2251,26 +2476,19 @@
     function openProfileModal() {
       const loggedInView = document.getElementById("profile-logged-in");
       const guestView = document.getElementById("profile-guest");
-      
-      let profile = null;
-      try {
-        const raw = localStorage.getItem("luxe:profile");
-        if (raw) {
-          profile = JSON.parse(raw);
-        }
-      } catch (e) {}
+      const profile = readProfile();
 
       if (profile && profile.email && profile.phone) {
         guestView.classList.add("hidden");
         loggedInView.classList.remove("hidden");
-        
+
         document.getElementById("profile-email-display").textContent = profile.email;
         document.getElementById("profile-phone-display").textContent = profile.phone;
-        
+
         // Render Address Book
         const addressesList = document.getElementById("profile-addresses-list");
         addressesList.innerHTML = "";
-        
+
         const addresses = Array.isArray(profile.addresses) ? profile.addresses : [];
         if (addresses.length === 0) {
           addressesList.innerHTML = `<p class="font-body-sm text-body-sm text-on-surface-variant text-center py-xs">No saved addresses yet.</p>`;
@@ -2297,7 +2515,7 @@
         // Render Order History
         const listContainer = document.getElementById("profile-orders-list");
         listContainer.innerHTML = "";
-        
+
         const orders = Array.isArray(profile.orders) ? profile.orders : [];
         if (orders.length === 0) {
           listContainer.innerHTML = `<p class="font-body-sm text-body-sm text-on-surface-variant text-center py-sm">No orders placed yet.</p>`;
@@ -2305,18 +2523,18 @@
           orders.forEach(order => {
             const row = document.createElement("div");
             row.className = "p-sm bg-surface-container-low rounded-lg border border-outline-variant/20 space-y-xs mb-sm";
-            
+
             const dateStr = escapeHtml(order.date || "");
             const idStr = escapeHtml(order.id || "");
             const totalStr = money.format(Number(order.total || 0));
-            
+
             let itemsHtml = "";
             if (Array.isArray(order.items)) {
               order.items.forEach(item => {
                 itemsHtml += `<div class="text-body-sm text-on-surface-variant">• ${escapeHtml(item.name)} (${escapeHtml(item.meta || "Qty: 1")})</div>`;
               });
             }
-            
+
             row.innerHTML = `
               <div class="flex justify-between items-center font-label-md text-label-md">
                 <span class="text-primary">${idStr}</span>
@@ -2337,7 +2555,7 @@
         loggedInView.classList.add("hidden");
         guestView.classList.remove("hidden");
       }
-      
+
       renderWishlistLists();
       profileModal.classList.add("is-open");
     }
@@ -2345,7 +2563,9 @@
     const signoutBtn = document.getElementById("profile-signout-btn");
     if (signoutBtn) {
       signoutBtn.addEventListener("click", () => {
-        localStorage.removeItem("luxe:profile");
+        apiRequest("logout", { method: "POST", body: {} }).catch(() => {});
+        writeProfileCache(null);
+        dispatchProfileUpdated(null);
         showToast("Signed out. Profile data cleared.");
         closeProfile();
       });
@@ -2354,14 +2574,15 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     setButtonDefaults();
+    hydrateImageAltText();
     normalizeHeaderActions();
     initProductFromQuery();
-	    initMobileMenus();
-	    initHomeCarousel();
-	    initNewsletterForms();
-	    initCollectionCardColorSwatches();
-	    initCollectionFilters();
-	    initProductOptions();
+    initMobileMenus();
+    initHomeCarousel();
+    initNewsletterForms();
+    initCollectionCardColorSwatches();
+    initCollectionFilters();
+    initProductOptions();
     initSizeGuide();
     initCartLineAdds();
     initCheckout();
@@ -2370,5 +2591,6 @@
     window.addEventListener("load", initActiveNavState, { once: true });
     window.addEventListener("resize", initActiveNavState);
     updateBagCountDisplay();
+    initBackendState();
   });
 })();
