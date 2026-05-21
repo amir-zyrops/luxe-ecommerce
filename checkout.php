@@ -344,7 +344,7 @@
       <!-- Step 1: Input Email/Phone & Confirm Details -->
       <div id="otp-modal-step-1" class="space-y-md">
         <p class="font-body-sm text-body-sm text-on-surface-variant">
-          Confirm your items and enter your details below. We'll send a 4-digit verification code to your phone and email to link this order to your profile.
+          Confirm your items and enter your details below. We'll send a 4-digit verification code to your email and phone to link this order to your profile.
         </p>
 
         <!-- Cart Items Preview -->
@@ -393,9 +393,9 @@
       <div id="otp-modal-step-2" class="space-y-md hidden">
         <div class="text-center p-md bg-primary/10 text-on-primary-fixed-variant rounded-lg border border-outline-variant/30 space-y-xs">
           <p class="font-label-lg text-label-lg text-primary">Verification Code Sent!</p>
-          <p class="font-body-sm text-body-sm text-on-surface-variant">We've simulated sending a code to <span id="display-phone" class="font-semibold text-on-surface"></span> and a confirmation email to <span id="display-email" class="font-semibold text-on-surface"></span>.</p>
-          <div class="mt-xs py-xs px-md bg-surface-container-lowest rounded border border-outline-variant/30 inline-block font-mono text-label-lg text-primary">
-            MOCK OTP: <span id="mock-otp-display" class="font-bold tracking-widest text-[16px]"></span>
+          <p class="font-body-sm text-body-sm text-on-surface-variant">We sent a code to <span id="display-phone" class="font-semibold text-on-surface"></span> and <span id="display-email" class="font-semibold text-on-surface"></span>.</p>
+          <div class="hidden mt-xs py-xs px-md bg-surface-container-lowest rounded border border-outline-variant/30 inline-block font-mono text-label-lg text-primary" data-debug-otp-box="">
+            DEV OTP: <span id="debug-otp-display" class="font-bold tracking-widest text-[16px]"></span>
           </div>
         </div>
 
