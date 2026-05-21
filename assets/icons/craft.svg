@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title">
+  <title id="title">Craftsmanship</title>
+  <path d="M6 25.5C11.6 25.5 11.6 20.5 16 20.5C20.4 20.5 20.4 25.5 26 25.5" stroke="#C4C5D9" stroke-width="1.75" stroke-linecap="round"/>
+  <path d="M21.35 5.85L25.9 10.4L13.05 23.25L7.2 24.8L8.75 18.95L21.35 5.85Z" stroke="#0040DF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M19.25 8.05L23.7 12.5" stroke="#0040DF" stroke-width="1.9" stroke-linecap="round"/>
+  <path d="M10.45 18.6L13.42 21.58" stroke="#0040DF" stroke-width="1.9" stroke-linecap="round"/>
+</svg>

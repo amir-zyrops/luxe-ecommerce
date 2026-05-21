@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title">
+  <title id="title">Quality</title>
+  <path d="M16 4.5L27.5 16L16 27.5L4.5 16L16 4.5Z" stroke="#C4C5D9" stroke-width="1.75" stroke-linejoin="round"/>
+  <path d="M16 8.75L23.25 16L16 23.25L8.75 16L16 8.75Z" stroke="#0040DF" stroke-width="1.9" stroke-linejoin="round"/>
+  <path d="M12.1 16.15L14.85 18.9L20.15 13.6" stroke="#0040DF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
