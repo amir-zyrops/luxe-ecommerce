@@ -263,7 +263,7 @@
 <div class="lg:col-span-5">
 <aside class="sticky top-24 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-lg shadow-sm">
 <h3 class="font-headline-sm text-headline-sm mb-lg border-b border-outline-variant/30 pb-sm">Order Summary</h3>
-<!-- Item List (filled from bag in localStorage; empty until you add items) -->
+<!-- Item List (filled from the browser cache and synced with the PHP backend) -->
 <div class="mb-lg">
 <div class="space-y-md" data-checkout-cart-items=""></div>
 <div class="rounded-lg border border-outline-variant/40 bg-surface-container-low p-md text-center" data-checkout-empty="">
@@ -340,18 +340,18 @@
           <span class="material-symbols-outlined text-[20px]">close</span>
         </button>
       </div>
-      
+
       <!-- Step 1: Input Email/Phone & Confirm Details -->
       <div id="otp-modal-step-1" class="space-y-md">
         <p class="font-body-sm text-body-sm text-on-surface-variant">
           Confirm your items and enter your details below. We'll send a 4-digit verification code to your phone and email to link this order to your profile.
         </p>
-        
+
         <!-- Cart Items Preview -->
         <div class="max-h-48 overflow-y-auto space-y-sm pr-xs border border-outline-variant/20 rounded-lg p-sm bg-surface-container-low" data-otp-modal-items="">
           <!-- JS will populate these -->
         </div>
-        
+
         <!-- Totals Summary -->
         <div class="p-sm bg-surface-container rounded-lg space-y-xs font-body-sm text-body-sm">
           <div class="flex justify-between text-on-surface-variant">
