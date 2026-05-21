@@ -289,7 +289,7 @@
   }
 
   function syncCartToBackend(items) {
-    if (!Array.isArray(items) || typeof window.fetch !== "function") {
+    if (!Array.isArray(items) || typeof window.fetch !== "function" || !readProfile()) {
       return;
     }
 
@@ -311,7 +311,7 @@
   }
 
   function syncWishlistToBackend(items) {
-    if (!Array.isArray(items) || typeof window.fetch !== "function") {
+    if (!Array.isArray(items) || typeof window.fetch !== "function" || !readProfile()) {
       return;
     }
 
@@ -341,22 +341,22 @@
     const localWishlist = readWishlist();
     try {
       const state = await apiRequest("state");
-      if (Array.isArray(state.cart) && state.cart.length) {
-        writeCartCache(state.cart);
-        dispatchCartUpdated();
-      } else if (localCart.length) {
-        syncCartToBackend(localCart);
-      }
-
-      if (Array.isArray(state.wishlist) && state.wishlist.length) {
-        writeWishlistCache(state.wishlist);
-      } else if (localWishlist.length) {
-        syncWishlistToBackend(localWishlist);
-      }
-
       if (state.profile) {
         writeProfileCache(state.profile);
         dispatchProfileUpdated(state.profile);
+
+        if (Array.isArray(state.cart) && state.cart.length) {
+          writeCartCache(state.cart);
+          dispatchCartUpdated();
+        } else if (localCart.length) {
+          syncCartToBackend(localCart);
+        }
+
+        if (Array.isArray(state.wishlist) && state.wishlist.length) {
+          writeWishlistCache(state.wishlist);
+        } else if (localWishlist.length) {
+          syncWishlistToBackend(localWishlist);
+        }
       }
 
       updateBagCountDisplay();
@@ -1954,7 +1954,7 @@
       });
 
       // Step 1 -> Step 2
-      let currentMockOtp = "";
+      let debugOtpCode = "";
       const sendOtpBtn = otpModal.querySelector("[data-send-otp-btn]");
       sendOtpBtn.addEventListener("click", async () => {
         const emailField = document.getElementById("checkout-otp-email");
@@ -1980,16 +1980,28 @@
             method: "POST",
             body: { email: emailVal, phone: phoneVal },
           });
-          currentMockOtp = payload.debug_code ? String(payload.debug_code) : "";
+          debugOtpCode = payload.debug_code ? String(payload.debug_code) : "";
+          const deliverySent = Object.values(payload.delivery || {}).some((result) => result?.status === "sent");
+          if (!deliverySent && !debugOtpCode) {
+            showToast(payload.message || "Configure email/SMS delivery before checkout.", "error");
+            return;
+          }
         } catch (error) {
-          currentMockOtp = String(Math.floor(1000 + Math.random() * 9000));
+          sendOtpBtn.disabled = false;
+          showToast(error.message || "Could not send the verification code.", "error");
+          return;
         } finally {
           sendOtpBtn.disabled = false;
         }
 
         document.getElementById("display-email").textContent = emailVal;
         document.getElementById("display-phone").textContent = phoneVal;
-        document.getElementById("mock-otp-display").textContent = currentMockOtp || "sent";
+        const debugOtpBox = otpModal.querySelector("[data-debug-otp-box]");
+        const debugOtpDisplay = document.getElementById("debug-otp-display");
+        if (debugOtpBox && debugOtpDisplay) {
+          debugOtpDisplay.textContent = debugOtpCode;
+          debugOtpBox.classList.toggle("hidden", !debugOtpCode);
+        }
 
         document.getElementById("otp-modal-step-1").classList.add("hidden");
         document.getElementById("otp-modal-step-2").classList.remove("hidden");
@@ -2037,101 +2049,55 @@
 
         verifyOtpBtn.disabled = true;
         let profile = null;
-        let verifiedWithBackend = false;
 
         try {
           const verified = await apiRequest("verify_otp", {
             method: "POST",
             body: { email: emailVal, phone: phoneVal, code: codeVal },
           });
-          verifiedWithBackend = true;
           if (verified.profile) {
             writeProfileCache(verified.profile);
+            dispatchProfileUpdated(verified.profile);
+            syncWishlistToBackend(readWishlist());
           }
         } catch (error) {
-          if (!currentMockOtp || codeVal !== currentMockOtp) {
-            verifyOtpBtn.disabled = false;
-            showToast("Invalid verification code. Please check and try again.", "error");
-            otpInput.classList.add("border-error");
-            otpInput.focus();
-            return;
-          }
+          verifyOtpBtn.disabled = false;
+          showToast(error.message || "Invalid verification code. Please check and try again.", "error");
+          otpInput.classList.add("border-error");
+          otpInput.focus();
+          return;
         }
 
         otpInput.classList.remove("border-error");
 
-        if (verifiedWithBackend) {
-          try {
-            const created = await apiRequest("orders/create", {
-              method: "POST",
-              body: {
-                address: shippingAddress,
-                items: cart,
-                subtotal: subtotalAmount,
-                shipping: shippingCost,
-                tax: taxAmount,
-                total: orderTotal,
-              },
-            });
-            profile = created.profile || readProfile();
-            if (profile) {
-              writeProfileCache(profile);
-              dispatchProfileUpdated(profile);
-            }
-            writeCartCache(Array.isArray(created.cart) ? created.cart : []);
-          } catch (error) {
-            verifyOtpBtn.disabled = false;
-            showToast(error.message || "Could not save the order to the backend.", "error");
-            return;
-          }
-        } else {
-          profile = readProfile() || {
-            email: emailVal,
-            phone: phoneVal,
-            addresses: [],
-            orders: []
-          };
-          profile.email = emailVal;
-          profile.phone = phoneVal;
-          profile.addresses = Array.isArray(profile.addresses) ? profile.addresses : [];
-          profile.orders = Array.isArray(profile.orders) ? profile.orders : [];
-
-          if (firstNameVal && addressLineVal) {
-            const existingAddrIdx = profile.addresses.findIndex(
-              (addr) => addr.label.toLowerCase() === selectedAddressLabel.toLowerCase()
-            );
-            if (existingAddrIdx > -1) {
-              profile.addresses[existingAddrIdx] = shippingAddress;
-            } else {
-              profile.addresses.push(shippingAddress);
-            }
-          }
-
-          profile.orders.unshift({
-            id: "LX-" + Math.floor(100000 + Math.random() * 900000),
-            date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
-            items: cart.map(item => ({
-              productId: item.productId,
-              name: item.name,
-              price: item.price,
-              meta: item.meta,
-              image: item.image
-            })),
-            total: orderTotal
+        try {
+          const created = await apiRequest("orders/create", {
+            method: "POST",
+            body: {
+              address: shippingAddress,
+              items: cart,
+              subtotal: subtotalAmount,
+              shipping: shippingCost,
+              tax: taxAmount,
+              total: orderTotal,
+            },
           });
-          writeProfileCache(profile);
-          dispatchProfileUpdated(profile);
-          writeCartCache([]);
+          profile = created.profile || readProfile();
+          if (profile) {
+            writeProfileCache(profile);
+            dispatchProfileUpdated(profile);
+          }
+          writeCartCache(Array.isArray(created.cart) ? created.cart : []);
+        } catch (error) {
+          verifyOtpBtn.disabled = false;
+          showToast(error.message || "Could not save the order to the backend.", "error");
+          return;
         }
 
         verifyOtpBtn.disabled = false;
 
-        // 2. Clear state
-        if (verifiedWithBackend) {
-          writeCartCache([]);
-        } else {
-          writeCart([]);
-        }
+        // Clear the local cart after the backend confirms the order.
+        writeCartCache([]);
         updateBagCountDisplay();
         renderLineItems();
         if (options[0]) {
