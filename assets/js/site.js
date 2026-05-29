@@ -1975,15 +1975,18 @@
         }
 
         sendOtpBtn.disabled = true;
+        let deliverySent = false;
+        let otpDelivery = {};
         try {
           const payload = await apiRequest("request_otp", {
             method: "POST",
             body: { email: emailVal, phone: phoneVal },
           });
           debugOtpCode = payload.debug_code ? String(payload.debug_code) : "";
-          const deliverySent = Object.values(payload.delivery || {}).some((result) => result?.status === "sent");
+          otpDelivery = payload.delivery || {};
+          deliverySent = Object.values(otpDelivery).some((result) => result?.status === "sent");
           if (!deliverySent && !debugOtpCode) {
-            showToast(payload.message || "Configure email/SMS delivery before checkout.", "error");
+            showToast(payload.message || "Configure SMTP email delivery before checkout.", "error");
             return;
           }
         } catch (error) {
@@ -1994,10 +1997,30 @@
           sendOtpBtn.disabled = false;
         }
 
-        document.getElementById("display-email").textContent = emailVal;
-        document.getElementById("display-phone").textContent = phoneVal;
+        const displayEmail = document.getElementById("display-email");
+        const displayPhone = document.getElementById("display-phone");
+        if (displayEmail) displayEmail.textContent = emailVal;
+        if (displayPhone) displayPhone.textContent = phoneVal;
         const debugOtpBox = otpModal.querySelector("[data-debug-otp-box]");
         const debugOtpDisplay = document.getElementById("debug-otp-display");
+        const otpStatusTitle = otpModal.querySelector("[data-otp-status-title]");
+        const otpStatusMessage = otpModal.querySelector("[data-otp-status-message]");
+
+        if (otpStatusTitle) {
+          otpStatusTitle.textContent = deliverySent ? "Verification Code Sent" : "Development OTP Generated";
+        }
+        if (otpStatusMessage) {
+          if (deliverySent) {
+            if (otpDelivery.email?.status === "sent") {
+              otpStatusMessage.innerHTML = `We sent a code to <span id="display-email" class="font-semibold text-on-surface">${escapeHtml(emailVal)}</span>.`;
+            } else {
+              otpStatusMessage.textContent = "We sent a code to your configured email channel.";
+            }
+          } else {
+            otpStatusMessage.textContent =
+              "SMTP email delivery is not configured. Use the development code shown below.";
+          }
+        }
         if (debugOtpBox && debugOtpDisplay) {
           debugOtpDisplay.textContent = debugOtpCode;
           debugOtpBox.classList.toggle("hidden", !debugOtpCode);

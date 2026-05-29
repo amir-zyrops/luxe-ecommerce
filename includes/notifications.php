@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-function luxe_send_checkout_otp(string $email, string $phone, string $code): array
+use PHPMailer\PHPMailer\Exception as PHPMailerException;
+use PHPMailer\PHPMailer\PHPMailer;
+
+function luxe_send_checkout_otp(string $email, string $code): array
 {
-    $plain = "Your LUXE checkout verification code is {$code}. It expires in 10 minutes.";
     $emailBody = "Use this code to confirm your LUXE checkout:\n\n{$code}\n\nThis code expires in 10 minutes.";
 
     return [
         "email" => luxe_send_transactional_email($email, "Your LUXE verification code", $emailBody),
-        "sms" => luxe_send_transactional_sms($phone, $plain),
     ];
 }
 
@@ -41,148 +42,63 @@ function luxe_send_order_confirmation(string $email, array $order): array
 
 function luxe_send_transactional_email(string $to, string $subject, string $body): array
 {
-    $sendgridKey = trim((string) getenv("LUXE_SENDGRID_API_KEY"));
-    if ($sendgridKey !== "") {
-        return luxe_sendgrid_email($sendgridKey, $to, $subject, $body);
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return luxe_notification_result("smtp", "failed", "Invalid recipient email address.");
     }
 
-    $transport = strtolower(trim((string) (getenv("LUXE_MAIL_TRANSPORT") ?: "log")));
-    if ($transport === "mail") {
-        return luxe_php_mail($to, $subject, $body);
+    $autoload = dirname(__DIR__) . "/vendor/autoload.php";
+    if (is_readable($autoload)) {
+        require_once $autoload;
     }
 
-    return luxe_notification_result("sendgrid/mail", "skipped", "No email provider is configured.");
-}
-
-function luxe_send_transactional_sms(string $phone, string $body): array
-{
-    $sid = trim((string) getenv("LUXE_TWILIO_ACCOUNT_SID"));
-    $token = trim((string) getenv("LUXE_TWILIO_AUTH_TOKEN"));
-    $from = trim((string) getenv("LUXE_TWILIO_FROM"));
-
-    if ($sid === "" || $token === "" || $from === "") {
-        return luxe_notification_result("twilio", "skipped", "No SMS provider is configured.");
+    if (!class_exists(PHPMailer::class)) {
+        return luxe_notification_result("smtp", "failed", "PHPMailer is not installed. Run composer install.");
     }
 
-    $url = "https://api.twilio.com/2010-04-01/Accounts/" . rawurlencode($sid) . "/Messages.json";
-    $payload = http_build_query([
-        "From" => $from,
-        "To" => $phone,
-        "Body" => $body,
-    ]);
+    // SMTP credentials are loaded from fixed environment variables here.
+    $host = trim((string) getenv("SMTP_HOST"));
+    $port = (int) trim((string) getenv("SMTP_PORT"));
+    $username = trim((string) getenv("SMTP_USERNAME"));
+    $password = (string) getenv("SMTP_PASSWORD");
+    $fromEmail = trim((string) getenv("SMTP_FROM_EMAIL"));
+    $fromName = trim((string) getenv("SMTP_FROM_NAME"));
 
-    $result = luxe_http_post($url, [
-        "Authorization: Basic " . base64_encode("{$sid}:{$token}"),
-        "Content-Type: application/x-www-form-urlencoded",
-    ], $payload, [200, 201]);
-
-    return $result["ok"]
-        ? luxe_notification_result("twilio", "sent")
-        : luxe_notification_result("twilio", "failed", $result["error"]);
-}
-
-function luxe_sendgrid_email(string $apiKey, string $to, string $subject, string $body): array
-{
-    $fromEmail = trim((string) getenv("LUXE_MAIL_FROM"));
-    if ($fromEmail === "") {
-        return luxe_notification_result("sendgrid", "skipped", "LUXE_MAIL_FROM is not configured.");
+    if ($host === "" || $port <= 0 || $username === "" || $password === "" || $fromEmail === "" || $fromName === "") {
+        return luxe_notification_result("smtp", "skipped", "SMTP environment variables are not configured.");
+    }
+    if (!filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+        return luxe_notification_result("smtp", "failed", "SMTP_FROM_EMAIL is invalid.");
     }
 
-    $payload = json_encode([
-        "personalizations" => [[
-            "to" => [["email" => $to]],
-        ]],
-        "from" => [
-            "email" => $fromEmail,
-            "name" => trim((string) (getenv("LUXE_MAIL_FROM_NAME") ?: "LUXE")),
-        ],
-        "subject" => $subject,
-        "content" => [[
-            "type" => "text/plain",
-            "value" => $body,
-        ]],
-    ], JSON_UNESCAPED_SLASHES);
-
-    $result = luxe_http_post("https://api.sendgrid.com/v3/mail/send", [
-        "Authorization: Bearer {$apiKey}",
-        "Content-Type: application/json",
-    ], $payload ?: "{}", [202]);
-
-    return $result["ok"]
-        ? luxe_notification_result("sendgrid", "sent")
-        : luxe_notification_result("sendgrid", "failed", $result["error"]);
-}
-
-function luxe_php_mail(string $to, string $subject, string $body): array
-{
-    $fromEmail = trim((string) getenv("LUXE_MAIL_FROM"));
-    if ($fromEmail === "") {
-        return luxe_notification_result("mail", "skipped", "LUXE_MAIL_FROM is not configured.");
-    }
-
-    $fromName = luxe_safe_header_value((string) (getenv("LUXE_MAIL_FROM_NAME") ?: "LUXE"));
-    $headers = [
-        "From: {$fromName} <" . luxe_safe_header_value($fromEmail) . ">",
-        "Content-Type: text/plain; charset=UTF-8",
-    ];
-
-    return mail($to, luxe_safe_header_value($subject), $body, implode("\r\n", $headers))
-        ? luxe_notification_result("mail", "sent")
-        : luxe_notification_result("mail", "failed", "PHP mail() returned false.");
-}
-
-function luxe_http_post(string $url, array $headers, string $content, array $successStatuses): array
-{
-    if (function_exists("curl_init")) {
-        $curl = curl_init($url);
-        curl_setopt_array($curl, [
-            CURLOPT_POST => true,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_POSTFIELDS => $content,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 12,
-        ]);
-        $response = curl_exec($curl);
-        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        $error = curl_error($curl);
-        curl_close($curl);
-
-        if (in_array($status, $successStatuses, true)) {
-            return ["ok" => true, "status" => $status, "error" => ""];
+    try {
+        $mail = new PHPMailer(true);
+        $mail->isSMTP();
+        $mail->Host = $host;
+        $mail->Port = $port;
+        $mail->SMTPAuth = true;
+        $mail->Username = $username;
+        $mail->Password = $password;
+        if ($port === 465) {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } elseif ($port !== 25) {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         }
+        $mail->CharSet = "UTF-8";
+        $mail->setFrom($fromEmail, $fromName);
 
-        return [
-            "ok" => false,
-            "status" => $status,
-            "error" => $error !== "" ? $error : substr(trim((string) $response), 0, 500),
-        ];
+        // The OTP email is sent to the dynamic user-provided recipient here.
+        $mail->addAddress($to);
+        $mail->Subject = $subject;
+        $mail->Body = $body;
+        $mail->AltBody = $body;
+        $mail->send();
+
+        return luxe_notification_result("smtp", "sent");
+    } catch (PHPMailerException $error) {
+        return luxe_notification_result("smtp", "failed", $error->getMessage());
+    } catch (Throwable $error) {
+        return luxe_notification_result("smtp", "failed", $error->getMessage());
     }
-
-    $context = stream_context_create([
-        "http" => [
-            "method" => "POST",
-            "header" => implode("\r\n", $headers),
-            "content" => $content,
-            "timeout" => 12,
-            "ignore_errors" => true,
-        ],
-    ]);
-
-    $response = @file_get_contents($url, false, $context);
-    $status = 0;
-    foreach ($http_response_header ?? [] as $header) {
-        if (preg_match("/^HTTP\/\S+\s+(\d+)/", $header, $matches)) {
-            $status = (int) $matches[1];
-            break;
-        }
-    }
-
-    if (in_array($status, $successStatuses, true)) {
-        return ["ok" => true, "status" => $status, "error" => ""];
-    }
-
-    $error = $response === false ? "HTTP request failed." : substr(trim($response), 0, 500);
-    return ["ok" => false, "status" => $status, "error" => $error];
 }
 
 function luxe_notification_result(string $provider, string $status, string $error = ""): array
@@ -197,9 +113,4 @@ function luxe_notification_result(string $provider, string $status, string $erro
 function luxe_notification_was_sent(?array $result): bool
 {
     return is_array($result) && ($result["status"] ?? "") === "sent";
-}
-
-function luxe_safe_header_value(string $value): string
-{
-    return trim(str_replace(["\r", "\n"], "", $value));
 }

@@ -392,16 +392,16 @@
       <!-- Step 2: Input OTP -->
       <div id="otp-modal-step-2" class="space-y-md hidden">
         <div class="text-center p-md bg-primary/10 text-on-primary-fixed-variant rounded-lg border border-outline-variant/30 space-y-xs">
-          <p class="font-label-lg text-label-lg text-primary">Verification Code Sent!</p>
-          <p class="font-body-sm text-body-sm text-on-surface-variant">We sent a code to <span id="display-phone" class="font-semibold text-on-surface"></span> and <span id="display-email" class="font-semibold text-on-surface"></span>.</p>
+          <p class="font-label-lg text-label-lg text-primary" data-otp-status-title="">Verification Code Sent</p>
+          <p class="font-body-sm text-body-sm text-on-surface-variant" data-otp-status-message="">We sent a code to <span id="display-phone" class="font-semibold text-on-surface"></span> and <span id="display-email" class="font-semibold text-on-surface"></span>.</p>
           <div class="hidden mt-xs py-xs px-md bg-surface-container-lowest rounded border border-outline-variant/30 inline-block font-mono text-label-lg text-primary" data-debug-otp-box="">
             DEV OTP: <span id="debug-otp-display" class="font-bold tracking-widest text-[16px]"></span>
           </div>
         </div>
 
         <div class="space-y-sm">
-          <label class="block font-label-md text-label-md mb-xs text-center text-on-surface">Enter 4-Digit Passcode</label>
-          <input id="checkout-otp-input" type="text" maxlength="4" class="w-36 mx-auto text-center tracking-[0.5em] font-mono text-headline-md px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none transition-colors block" placeholder="0000" />
+          <label class="block font-label-md text-label-md mb-xs text-center text-on-surface">Enter 6-Digit Passcode</label>
+          <input id="checkout-otp-input" type="text" maxlength="6" class="w-44 mx-auto text-center tracking-[0.5em] font-mono text-headline-md px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none transition-colors block" placeholder="000000" />
         </div>
 
         <div class="flex gap-base mt-md">

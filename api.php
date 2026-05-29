@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . "/includes/database.php";
 require_once __DIR__ . "/includes/notifications.php";
 
+const LUXE_OTP_PURPOSE_CHECKOUT = "checkout";
+
 session_name("LUXESESSID");
 session_start();
 
@@ -126,7 +128,12 @@ function json_input(): array
     }
 
     $decoded = json_decode($raw, true);
-    return is_array($decoded) ? $decoded : [];
+    if (is_array($decoded)) {
+        return $decoded;
+    }
+
+    parse_str($raw, $formInput);
+    return is_array($formInput) ? $formInput : [];
 }
 
 function require_method(string $method): void
@@ -152,41 +159,52 @@ function require_user(): int
 
 function handle_request_otp(PDO $pdo, array $input): void
 {
-    $email = normalized_email($input["email"] ?? "");
-    $phone = clean_text($input["phone"] ?? "", 50);
+    // User email is read from the checkout form payload, never from configuration.
+    $email = strtolower(trim((string) ($_POST["email"] ?? ($input["email"] ?? ""))));
+    $phone = clean_text($_POST["phone"] ?? ($input["phone"] ?? ""), 50);
 
-    if (!$email || !$phone) {
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !$phone) {
         throw new DomainException("Enter a valid email and phone number.");
     }
 
     $userId = upsert_user($pdo, $email, $phone);
-    $code = (string) random_int(1000, 9999);
+
+    // The OTP is generated on the backend only.
+    $code = (string) random_int(100000, 999999);
+
+    // Only the hashed OTP is stored in PostgreSQL.
+    $codeHash = password_hash($code, PASSWORD_DEFAULT);
+
+    // The target email, purpose, hash, expiry, attempts, and verified status are stored here.
     $stmt = $pdo->prepare(
-        "INSERT INTO otp_codes (user_id, email, phone, code_hash, expires_at)
-         VALUES (:user_id, :email, :phone, :code_hash, now() + interval '10 minutes')"
+        "INSERT INTO otp_codes (user_id, email, phone, purpose, code_hash, attempts, verified, expires_at)
+         VALUES (:user_id, :email, :phone, :purpose, :code_hash, 0, false, now() + interval '10 minutes')"
         . " RETURNING id"
     );
     $stmt->execute([
         "user_id" => $userId,
         "email" => $email,
         "phone" => $phone,
-        "code_hash" => password_hash($code, PASSWORD_DEFAULT),
+        "purpose" => LUXE_OTP_PURPOSE_CHECKOUT,
+        "code_hash" => $codeHash,
     ]);
     $otpId = (int) $stmt->fetchColumn();
-    $delivery = luxe_send_checkout_otp($email, $phone, $code);
-    log_notification_events($pdo, $userId, $delivery, ["email" => $email, "sms" => $phone], $otpId);
+
+    // The email is sent through PHPMailer SMTP to the dynamic user-provided email.
+    $delivery = luxe_send_checkout_otp($email, $code);
+    log_notification_events($pdo, $userId, $delivery, ["email" => $email], $otpId);
 
     if (getenv("LUXE_REQUIRE_OTP_DELIVERY") === "1"
-        && (!luxe_notification_was_sent($delivery["email"] ?? null) || !luxe_notification_was_sent($delivery["sms"] ?? null))
+        && !luxe_notification_was_sent($delivery["email"] ?? null)
     ) {
-        throw new RuntimeException("Verification delivery failed. Check email and SMS provider settings.");
+        throw new RuntimeException("Verification email delivery failed. Check SMTP provider settings.");
     }
 
-    $sent = luxe_notification_was_sent($delivery["email"] ?? null) || luxe_notification_was_sent($delivery["sms"] ?? null);
+    $sent = luxe_notification_was_sent($delivery["email"] ?? null);
 
     json_response([
         "ok" => true,
-        "message" => $sent ? "Verification code sent." : "Verification code generated. Configure email/SMS providers for live delivery.",
+        "message" => $sent ? "Verification code sent to your email." : "Verification code generated. Configure SMTP for live email delivery.",
         "delivery" => $delivery,
         "debug_code" => getenv("LUXE_DEBUG_OTP") === "1" ? $code : null,
     ]);
@@ -194,11 +212,11 @@ function handle_request_otp(PDO $pdo, array $input): void
 
 function handle_verify_otp(PDO $pdo, array $input): void
 {
-    $email = normalized_email($input["email"] ?? "");
-    $phone = clean_text($input["phone"] ?? "", 50);
-    $code = preg_replace("/\D+/", "", (string) ($input["code"] ?? ""));
+    $email = normalized_email($_POST["email"] ?? ($input["email"] ?? ""));
+    $phone = clean_text($_POST["phone"] ?? ($input["phone"] ?? ""), 50);
+    $code = preg_replace("/\D+/", "", (string) ($_POST["code"] ?? ($input["code"] ?? "")));
 
-    if (!$email || !$phone || strlen($code) !== 4) {
+    if (!$email || !$phone || strlen($code) !== 6) {
         throw new DomainException("Invalid verification details.");
     }
 
@@ -207,20 +225,21 @@ function handle_verify_otp(PDO $pdo, array $input): void
          FROM otp_codes
          WHERE email = :email
            AND phone = :phone
-           AND verified_at IS NULL
+           AND purpose = :purpose
+           AND verified = false
            AND expires_at > now()
            AND attempts < 5
          ORDER BY created_at DESC
          LIMIT 5"
     );
-    $stmt->execute(["email" => $email, "phone" => $phone]);
+    $stmt->execute(["email" => $email, "phone" => $phone, "purpose" => LUXE_OTP_PURPOSE_CHECKOUT]);
     $codes = $stmt->fetchAll();
 
     foreach ($codes as $otp) {
         if (password_verify($code, (string) $otp["code_hash"])) {
             $pdo->beginTransaction();
             try {
-                $pdo->prepare("UPDATE otp_codes SET verified_at = now() WHERE id = :id")
+                $pdo->prepare("UPDATE otp_codes SET verified = true, verified_at = now() WHERE id = :id")
                     ->execute(["id" => $otp["id"]]);
                 $pdo->prepare("UPDATE users SET phone = :phone WHERE id = :id")
                     ->execute(["phone" => $phone, "id" => $otp["user_id"]]);
@@ -243,8 +262,12 @@ function handle_verify_otp(PDO $pdo, array $input): void
     $pdo->prepare(
         "UPDATE otp_codes
          SET attempts = attempts + 1
-         WHERE email = :email AND phone = :phone AND verified_at IS NULL AND expires_at > now()"
-    )->execute(["email" => $email, "phone" => $phone]);
+         WHERE email = :email
+           AND phone = :phone
+           AND purpose = :purpose
+           AND verified = false
+           AND expires_at > now()"
+    )->execute(["email" => $email, "phone" => $phone, "purpose" => LUXE_OTP_PURPOSE_CHECKOUT]);
 
     json_response(["ok" => false, "error" => "Invalid or expired verification code."], 401);
 }

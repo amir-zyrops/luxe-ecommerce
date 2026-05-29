@@ -2,3 +2,6 @@
 .env
 *.log
 .DS_Store
+vendor/
+logs/
+PROJECT_OVERVIEW.md

@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
-fi
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=scripts/env-loader.sh
+. "$SCRIPT_DIR/env-loader.sh"
+
+luxe_load_env_file "$PROJECT_DIR/.env"
 
 HOST="${LUXE_HOST:-127.0.0.1}"
 PORT="${LUXE_PORT:-8000}"
+
+cd "$PROJECT_DIR"
 
 exec php \
   -d extension=pgsql \

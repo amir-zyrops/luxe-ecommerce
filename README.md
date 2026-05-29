@@ -11,12 +11,14 @@
 - Email and phone based user creation during checkout
 - Hashed OTP verification
 - Saved addresses and order history
-- SendGrid and Twilio integration hooks
+- PHPMailer SMTP email OTP delivery
 
 ## 🧱 Tech Stack
 
 - PHP 8
 - PostgreSQL
+- Composer
+- PHPMailer
 - Vanilla JavaScript
 - Tailwind CDN
 - CSS
@@ -25,6 +27,7 @@
 
 ```bash
 cp .env.example .env
+composer install
 scripts/setup-db.sh
 LUXE_PORT=8080 scripts/serve.sh
 ```
@@ -46,7 +49,16 @@ LUXE_DEBUG_OTP=1
 LUXE_REQUIRE_OTP_DELIVERY=0
 ```
 
-For real email/SMS delivery, add SendGrid and Twilio credentials in `.env`.
+For real email OTP delivery, add SMTP credentials in `.env`.
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=your_smtp_username
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM_EMAIL=orders@example.com
+SMTP_FROM_NAME=LUXE
+```
 
 ## ✅ Checks
 
@@ -56,6 +68,11 @@ for file in api.php includes/database.php includes/notifications.php index.php c
 done
 
 node --check assets/js/site.js
-bash -n scripts/setup-db.sh scripts/serve.sh
+bash -n scripts/env-loader.sh scripts/setup-db.sh scripts/serve.sh
+php -r 'require "vendor/autoload.php"; echo class_exists("PHPMailer\\PHPMailer\\PHPMailer") ? "phpmailer=ok\n" : "phpmailer=missing\n";'
 git diff --check
 ```
+
+## 📝 Documentation
+
+When setup, database, OTP, or runtime behavior changes, update both `README.md` and `PROJECT_OVERVIEW.md` in the same change.

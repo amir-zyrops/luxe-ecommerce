@@ -33,16 +33,23 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
   phone TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'checkout',
   code_hash TEXT NOT NULL,
   attempts INTEGER NOT NULL DEFAULT 0,
+  verified BOOLEAN NOT NULL DEFAULT false,
   verified_at TIMESTAMPTZ,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_otp_codes_lookup
-ON otp_codes (email, phone, created_at DESC)
-WHERE verified_at IS NULL;
+ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'checkout';
+ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false;
+UPDATE otp_codes SET verified = true WHERE verified_at IS NOT NULL;
+
+DROP INDEX IF EXISTS idx_otp_codes_lookup;
+CREATE INDEX idx_otp_codes_lookup
+ON otp_codes (email, phone, purpose, created_at DESC)
+WHERE verified = false;
 
 CREATE TABLE IF NOT EXISTS products (
   product_slug TEXT PRIMARY KEY,
@@ -174,13 +181,17 @@ CREATE TABLE IF NOT EXISTS notification_events (
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   otp_code_id BIGINT REFERENCES otp_codes(id) ON DELETE SET NULL,
   order_id BIGINT REFERENCES orders(id) ON DELETE SET NULL,
-  channel TEXT NOT NULL CHECK (channel IN ('email', 'sms')),
+  channel TEXT NOT NULL CHECK (channel = 'email'),
   recipient TEXT NOT NULL,
   provider TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL CHECK (status IN ('sent', 'skipped', 'failed')),
   error_message TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+DELETE FROM notification_events WHERE channel <> 'email';
+ALTER TABLE notification_events DROP CONSTRAINT IF EXISTS notification_events_channel_check;
+ALTER TABLE notification_events ADD CONSTRAINT notification_events_channel_check CHECK (channel = 'email');
 
 CREATE INDEX IF NOT EXISTS idx_notification_events_user_id
 ON notification_events (user_id, created_at DESC);
