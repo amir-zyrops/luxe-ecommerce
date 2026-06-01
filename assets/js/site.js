@@ -2304,7 +2304,6 @@
         const cityVal = document.querySelector('input[name="city"]')?.value?.trim() || "";
         const postalCodeVal = document.querySelector('input[name="postal_code"]')?.value?.trim() || "";
         const cart = readCart();
-        const orderTotal = subtotalAmount + taxAmount + shippingCost;
         const shippingAddress = {
           id: String(Date.now()),
           label: selectedAddressLabel,
@@ -2316,8 +2315,6 @@
         };
 
         verifyOtpBtn.disabled = true;
-        let profile = null;
-
         try {
           const verified = await apiRequest("verify_otp", {
             method: "POST",
@@ -2339,48 +2336,75 @@
         otpInput.classList.remove("border-error");
 
         try {
-          const created = await apiRequest("orders/create", {
+          const checkout = await apiRequest("stripe/checkout", {
             method: "POST",
             body: {
               address: shippingAddress,
               items: cart,
-              subtotal: subtotalAmount,
               shipping: shippingCost,
-              tax: taxAmount,
-              total: orderTotal,
             },
           });
-          profile = created.profile || readProfile();
-          if (profile) {
-            writeProfileCache(profile);
-            dispatchProfileUpdated(profile);
+          if (!checkout.checkout_url) {
+            throw new Error("Stripe checkout URL was not returned.");
           }
-          writeCartCache(Array.isArray(created.cart) ? created.cart : []);
+          showToast("Redirecting to Stripe payment.");
+          window.location.href = checkout.checkout_url;
         } catch (error) {
           verifyOtpBtn.disabled = false;
-          showToast(error.message || "Could not save the order to the backend.", "error");
+          showToast(error.message || "Could not start Stripe payment.", "error");
           return;
         }
+      });
+    }
 
-        verifyOtpBtn.disabled = false;
+    const clearStripeReturnParams = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("stripe");
+      url.searchParams.delete("session_id");
+      window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+    };
 
-        // Clear the local cart after the backend confirms the order.
-        writeCartCache([]);
+    const handleStripeReturn = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const stripeStatus = params.get("stripe");
+      const sessionId = params.get("session_id");
+
+      if (stripeStatus === "cancelled") {
+        showToast("Stripe payment was cancelled.");
+        clearStripeReturnParams();
+        return;
+      }
+
+      if (stripeStatus !== "success" || !sessionId) {
+        return;
+      }
+
+      showToast("Confirming Stripe payment.");
+      try {
+        const completed = await apiRequest("stripe/complete", {
+          method: "POST",
+          body: { session_id: sessionId },
+        });
+        const profile = completed.profile || readProfile();
+        if (profile) {
+          writeProfileCache(profile);
+          dispatchProfileUpdated(profile);
+          populateSavedAddresses(profile);
+        }
+        writeCartCache(Array.isArray(completed.cart) ? completed.cart : []);
         updateBagCountDisplay();
         renderLineItems();
         if (options[0]) {
           setShipping(options[0]);
         }
+        clearStripeReturnParams();
+        showToast("Payment successful. Your order has been placed.");
+      } catch (error) {
+        showToast(error.message || "Could not confirm Stripe payment.", "error");
+      }
+    };
 
-        // Re-initialize selector prefill dropdown
-        if (profile) {
-          populateSavedAddresses(profile);
-        }
-
-        otpModal.classList.remove("is-open");
-        showToast("Verification successful! Your order has been placed and linked to your profile.");
-      });
-    }
+    handleStripeReturn();
   }
 
   function initCartLineAdds() {

@@ -50,6 +50,18 @@ try {
             handle_verify_otp($pdo, json_input());
             break;
 
+        case "stripe/checkout":
+            require_method("POST");
+            $userId = require_user();
+            handle_stripe_checkout($pdo, $userId, json_input());
+            break;
+
+        case "stripe/complete":
+            require_method("POST");
+            $userId = require_user();
+            handle_stripe_complete($pdo, $userId, json_input());
+            break;
+
         case "cart/save":
             require_method("POST");
             $cart = save_cart_items($pdo, require_user(), json_input()["items"] ?? []);
@@ -83,6 +95,9 @@ try {
 
         case "orders/create":
             require_method("POST");
+            if (getenv("LUXE_ALLOW_DEMO_ORDERS") !== "1") {
+                throw new DomainException("Use Stripe Checkout to place orders.");
+            }
             $userId = require_user();
             $order = create_order($pdo, $userId, json_input());
             $profile = fetch_profile($pdo, $userId);
@@ -578,40 +593,143 @@ function save_address(PDO $pdo, int $userId, mixed $input): int
     return (int) $stmt->fetchColumn();
 }
 
-function create_order(PDO $pdo, int $userId, array $input): array
+function handle_stripe_checkout(PDO $pdo, int $userId, array $input): void
 {
-    $items = is_array($input["items"] ?? null) ? array_slice($input["items"], 0, 100) : [];
-    if (!$items) {
-        throw new DomainException("Your bag is empty.");
+    $secretKey = stripe_secret_key();
+    $profile = fetch_profile($pdo, $userId);
+    if (!$profile || empty($profile["email"])) {
+        throw new DomainException("Verify your email before payment.");
     }
 
-    $addressId = save_address($pdo, $userId, $input["address"] ?? []);
-    $address = sanitize_address($input["address"] ?? []);
-    $shipping = min(max(money_value($input["shipping"] ?? 0), 0), 50);
-    $lines = [];
-    $subtotal = 0.0;
+    $checkout = prepare_checkout_order($pdo, $input);
+    $currency = stripe_currency();
+    $lineItems = [];
 
-    foreach ($items as $item) {
-        if (!is_array($item)) {
-            continue;
+    foreach ($checkout["lines"] as $line) {
+        $productData = [
+            "name" => $line["name"],
+            "metadata" => [
+                "product_id" => $line["product_id"] ?? "",
+                "meta" => $line["meta"],
+            ],
+        ];
+        if (filter_var($line["image"], FILTER_VALIDATE_URL)) {
+            $productData["images"] = [$line["image"]];
         }
 
-        $line = sanitize_cart_item($pdo, $item, true);
-        if (!$line) {
-            continue;
-        }
-
-        $lines[] = $line;
-        $subtotal += $line["price"] * $line["quantity"];
+        $lineItems[] = [
+            "price_data" => [
+                "currency" => $currency,
+                "unit_amount" => stripe_amount($line["price"]),
+                "product_data" => $productData,
+            ],
+            "quantity" => $line["quantity"],
+        ];
     }
 
-    if (!$lines) {
-        throw new DomainException("Your bag is empty.");
+    if ($checkout["shipping"] > 0) {
+        $lineItems[] = stripe_flat_fee_line("Shipping", $checkout["shipping"], $currency);
+    }
+    if ($checkout["tax"] > 0) {
+        $lineItems[] = stripe_flat_fee_line("Estimated tax", $checkout["tax"], $currency);
     }
 
-    $subtotal = round($subtotal, 2);
-    $tax = round($subtotal * 0.08, 2);
-    $total = round($subtotal + $tax + $shipping, 2);
+    $session = stripe_api_request("POST", "/v1/checkout/sessions", [
+        "mode" => "payment",
+        "customer_email" => (string) $profile["email"],
+        "client_reference_id" => (string) $userId,
+        "success_url" => stripe_success_url(),
+        "cancel_url" => stripe_cancel_url(),
+        "line_items" => $lineItems,
+        "metadata" => [
+            "user_id" => (string) $userId,
+            "checkout_total" => number_format($checkout["total"], 2, ".", ""),
+        ],
+    ], $secretKey);
+
+    $sessionId = clean_text($session["id"] ?? "", 255);
+    $checkoutUrl = clean_url($session["url"] ?? "");
+    if (!$sessionId || !$checkoutUrl) {
+        throw new RuntimeException("Stripe did not return a checkout URL.");
+    }
+
+    $_SESSION["luxe_stripe_checkouts"][$sessionId] = [
+        "user_id" => $userId,
+        "created_at" => time(),
+        "expected_total" => $checkout["total"],
+        "input" => [
+            "address" => $checkout["address"],
+            "items" => array_map(static fn (array $line): array => [
+                "id" => $line["id"],
+                "productId" => $line["product_id"],
+                "name" => $line["name"],
+                "price" => $line["price"],
+                "image" => $line["image"],
+                "meta" => $line["meta"],
+                "quantity" => $line["quantity"],
+            ], $checkout["lines"]),
+            "shipping" => $checkout["shipping"],
+        ],
+    ];
+
+    json_response([
+        "ok" => true,
+        "checkout_url" => $checkoutUrl,
+        "session_id" => $sessionId,
+    ]);
+}
+
+function handle_stripe_complete(PDO $pdo, int $userId, array $input): void
+{
+    $sessionId = clean_text($input["session_id"] ?? "", 255);
+    if (!$sessionId || !str_starts_with($sessionId, "cs_")) {
+        throw new DomainException("Invalid Stripe checkout session.");
+    }
+
+    $pending = $_SESSION["luxe_stripe_checkouts"][$sessionId] ?? null;
+    if (!is_array($pending) || (int) ($pending["user_id"] ?? 0) !== $userId) {
+        throw new DomainException("Stripe checkout session expired. Please try checkout again.");
+    }
+
+    $session = stripe_api_request("GET", "/v1/checkout/sessions/" . rawurlencode($sessionId), [], stripe_secret_key());
+    if (($session["payment_status"] ?? "") !== "paid") {
+        throw new DomainException("Stripe payment is not complete yet.");
+    }
+
+    $expectedAmount = stripe_amount(money_value($pending["expected_total"] ?? 0));
+    $paidAmount = (int) ($session["amount_total"] ?? 0);
+    if ($expectedAmount <= 0 || $paidAmount !== $expectedAmount) {
+        throw new RuntimeException("Stripe payment total does not match this checkout.");
+    }
+
+    $paymentReference = clean_text($session["payment_intent"] ?? $sessionId, 255);
+    $order = create_order($pdo, $userId, $pending["input"] ?? [], $paymentReference, false);
+    unset($_SESSION["luxe_stripe_checkouts"][$sessionId]);
+
+    $profile = fetch_profile($pdo, $userId);
+    $notifications = $profile
+        ? send_order_notifications($pdo, $userId, (string) $profile["email"], $order)
+        : [];
+
+    json_response([
+        "ok" => true,
+        "order" => public_order($order),
+        "profile" => $profile,
+        "cart" => fetch_cart_items($pdo, $userId),
+        "notifications" => $notifications,
+    ]);
+}
+
+function create_order(PDO $pdo, int $userId, array $input, ?string $paymentReference = null, bool $useCatalogPrice = true): array
+{
+    $checkout = prepare_checkout_order($pdo, $input, $useCatalogPrice);
+    $addressId = save_address($pdo, $userId, $checkout["address"]);
+    $address = $checkout["address"];
+    $lines = $checkout["lines"];
+    $subtotal = $checkout["subtotal"];
+    $shipping = $checkout["shipping"];
+    $tax = $checkout["tax"];
+    $total = $checkout["total"];
 
     $pdo->beginTransaction();
     try {
@@ -632,7 +750,7 @@ function create_order(PDO $pdo, int $userId, array $input): array
             "shipping" => $shipping,
             "tax" => $tax,
             "total" => $total,
-            "payment_reference" => "DEMO-" . bin2hex(random_bytes(5)),
+            "payment_reference" => $paymentReference ?: "DEMO-" . bin2hex(random_bytes(5)),
         ]);
         $order = $stmt->fetch();
 
@@ -667,6 +785,50 @@ function create_order(PDO $pdo, int $userId, array $input): array
         "date" => date("M j, Y", strtotime((string) $order["created_at"])),
         "items" => array_map("map_line_item", $lines),
         "total" => (float) $order["total"],
+    ];
+}
+
+function prepare_checkout_order(PDO $pdo, array $input, bool $useCatalogPrice = true): array
+{
+    $items = is_array($input["items"] ?? null) ? array_slice($input["items"], 0, 98) : [];
+    if (!$items) {
+        throw new DomainException("Your bag is empty.");
+    }
+
+    $address = sanitize_address($input["address"] ?? []);
+    $shipping = min(max(money_value($input["shipping"] ?? 0), 0), 50);
+    $lines = [];
+    $subtotal = 0.0;
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $line = sanitize_cart_item($pdo, $item, $useCatalogPrice);
+        if (!$line) {
+            continue;
+        }
+
+        $lines[] = $line;
+        $subtotal += $line["price"] * $line["quantity"];
+    }
+
+    if (!$lines) {
+        throw new DomainException("Your bag is empty.");
+    }
+
+    $subtotal = round($subtotal, 2);
+    $tax = round($subtotal * 0.08, 2);
+    $total = round($subtotal + $tax + $shipping, 2);
+
+    return [
+        "address" => $address,
+        "lines" => $lines,
+        "subtotal" => $subtotal,
+        "shipping" => $shipping,
+        "tax" => $tax,
+        "total" => $total,
     ];
 }
 
@@ -719,6 +881,111 @@ function next_order_number(PDO $pdo): string
     } while ($stmt->fetchColumn());
 
     return $number;
+}
+
+function stripe_secret_key(): string
+{
+    $key = trim((string) getenv("STRIPE_SECRET_KEY"));
+    if ($key === "") {
+        throw new RuntimeException("Stripe is not configured. Add STRIPE_SECRET_KEY to your .env file.");
+    }
+    return $key;
+}
+
+function stripe_currency(): string
+{
+    $currency = strtolower(trim((string) (getenv("STRIPE_CURRENCY") ?: "usd")));
+    return preg_match("/^[a-z]{3}$/", $currency) ? $currency : "usd";
+}
+
+function stripe_success_url(): string
+{
+    $configured = trim((string) getenv("STRIPE_SUCCESS_URL"));
+    return $configured !== "" ? $configured : site_url("/checkout.php?stripe=success&session_id={CHECKOUT_SESSION_ID}");
+}
+
+function stripe_cancel_url(): string
+{
+    $configured = trim((string) getenv("STRIPE_CANCEL_URL"));
+    return $configured !== "" ? $configured : site_url("/checkout.php?stripe=cancelled");
+}
+
+function site_url(string $path): string
+{
+    $host = $_SERVER["HTTP_HOST"] ?? "127.0.0.1:8000";
+    $https = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off")
+        || (($_SERVER["HTTP_X_FORWARDED_PROTO"] ?? "") === "https");
+    $scheme = $https ? "https" : "http";
+    return $scheme . "://" . $host . $path;
+}
+
+function stripe_amount(float $amount): int
+{
+    return max(0, (int) round($amount * 100));
+}
+
+function stripe_flat_fee_line(string $name, float $amount, string $currency): array
+{
+    return [
+        "price_data" => [
+            "currency" => $currency,
+            "unit_amount" => stripe_amount($amount),
+            "product_data" => ["name" => $name],
+        ],
+        "quantity" => 1,
+    ];
+}
+
+function stripe_api_request(string $method, string $path, array $params, string $secretKey): array
+{
+    if (!extension_loaded("curl")) {
+        throw new RuntimeException("PHP cURL extension is required for Stripe Checkout.");
+    }
+
+    $method = strtoupper($method);
+    $url = "https://api.stripe.com" . $path;
+    if ($method === "GET" && $params) {
+        $url .= "?" . http_build_query($params, "", "&", PHP_QUERY_RFC3986);
+    }
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: Bearer " . $secretKey,
+            "Content-Type: application/x-www-form-urlencoded",
+        ],
+        CURLOPT_TIMEOUT => 20,
+    ]);
+
+    if ($method === "POST") {
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params, "", "&", PHP_QUERY_RFC3986));
+    } elseif ($method !== "GET") {
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+    }
+
+    $raw = curl_exec($ch);
+    if ($raw === false) {
+        $error = curl_error($ch) ?: "Stripe request failed.";
+        curl_close($ch);
+        throw new RuntimeException($error);
+    }
+
+    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    $payload = json_decode($raw, true);
+    if (!is_array($payload)) {
+        throw new RuntimeException("Stripe returned an invalid response.");
+    }
+
+    if ($status < 200 || $status >= 300) {
+        $message = clean_text($payload["error"]["message"] ?? "Stripe request failed.", 500);
+        throw new RuntimeException($message);
+    }
+
+    return $payload;
 }
 
 function sanitize_cart_item(PDO $pdo, array $item, bool $useCatalogPrice = false): ?array

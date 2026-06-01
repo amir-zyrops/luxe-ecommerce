@@ -237,30 +237,20 @@
 <section>
 <div class="flex items-center gap-sm mb-lg">
 <span class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold">3</span>
-<h2 class="font-headline-lg text-headline-lg">Payment Details</h2>
+<h2 class="font-headline-lg text-headline-lg">Payment</h2>
 </div>
-<div class="bg-surface-container-lowest p-md rounded-xl shadow-sm border border-outline-variant/30 space-y-md">
-<div class="relative">
-<label class="block font-label-md text-label-md mb-xs">Card Number</label>
-<input class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none transition-colors" data-checkout-required="" name="card_number" placeholder="0000 0000 0000 0000" required="" type="text"/>
-<div class="absolute right-3 bottom-2.5 flex gap-xs">
-<span class="material-symbols-outlined text-outline" data-icon="credit_card">credit_card</span>
-</div>
-</div>
-	<div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+<div class="bg-surface-container-lowest p-md rounded-xl shadow-sm border border-outline-variant/30">
+<div class="flex items-start gap-md">
+<span class="material-symbols-outlined text-primary text-[32px]" data-icon="credit_card">credit_card</span>
 <div>
-<label class="block font-label-md text-label-md mb-xs">Expiry Date</label>
-<input class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none transition-colors" data-checkout-required="" name="expiry" placeholder="MM/YY" required="" type="text"/>
-</div>
-<div>
-<label class="block font-label-md text-label-md mb-xs">CVV</label>
-<input class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none transition-colors" data-checkout-required="" name="cvv" placeholder="123" required="" type="text"/>
+<p class="font-label-lg text-label-lg text-on-surface">Secure payment with Stripe</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">After email verification, you will continue to Stripe to enter payment details securely.</p>
 </div>
 </div>
 </div>
 </section>
 <button class="w-full py-md bg-primary text-on-primary font-label-lg text-label-lg rounded-lg shadow-md hover:opacity-90 active:scale-[0.98] transition-all" data-complete-purchase="">
-                    Complete Purchase
+                    Continue to Payment
                 </button>
 </div>
 <!-- Right Side: Order Summary (Sticky) -->
@@ -409,7 +399,7 @@
             Back
           </button>
           <button type="button" class="flex-1 py-md bg-primary text-on-primary font-label-lg text-label-lg rounded-lg shadow-md hover:opacity-90 active:scale-[0.98] transition-all" data-verify-otp-btn="">
-            Verify & Confirm Order
+            Verify & Continue to Stripe
           </button>
         </div>
       </div>

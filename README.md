@@ -8,6 +8,7 @@ Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, ema
 - Customers browse without login and authenticate only during checkout
 - Email-only checkout OTP using PHPMailer SMTP
 - OTP codes are generated on the backend and stored hashed in PostgreSQL
+- Stripe Checkout payment redirect after email verification
 - Saved addresses, cart items, wishlist items, orders, and notification logs
 - Separate retailer authentication and dashboard
 - Retailers can add, edit, and delete only their own products from the dashboard
@@ -24,6 +25,7 @@ Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, ema
 - PostgreSQL
 - Composer
 - PHPMailer
+- Stripe Checkout API
 - Vanilla JavaScript
 - Tailwind CDN
 - CSS
@@ -110,6 +112,7 @@ Development OTP settings:
 ```env
 LUXE_DEBUG_OTP=1
 LUXE_DEBUG_API=0
+LUXE_ALLOW_DEMO_ORDERS=0
 LUXE_REQUIRE_OTP_DELIVERY=0
 ```
 
@@ -123,6 +126,17 @@ SMTP_PASSWORD=your_smtp_password
 SMTP_FROM_EMAIL=orders@example.com
 SMTP_FROM_NAME=LUXE
 ```
+
+Stripe Checkout settings:
+
+```env
+STRIPE_SECRET_KEY=sk_test_your_key_here
+STRIPE_CURRENCY=usd
+STRIPE_SUCCESS_URL=
+STRIPE_CANCEL_URL=
+```
+
+If `STRIPE_SUCCESS_URL` and `STRIPE_CANCEL_URL` are blank, the backend sends Stripe back to `/checkout.php` on the current local server host.
 
 Optional retailer admin approval login:
 
@@ -138,6 +152,10 @@ Do not commit `.env`; use `.env.example` for safe defaults.
 Customers can browse the storefront without logging in. Cart and wishlist data stay in browser `localStorage` until checkout verification.
 
 At checkout, the customer enters an email address. The backend generates a 6-digit OTP with `random_int()`, stores only `password_hash()` output in PostgreSQL, and sends the OTP to the entered email using PHPMailer SMTP.
+
+After OTP verification, the checkout page redirects the customer to Stripe Checkout. Card details are entered only on Stripe's hosted checkout page. When Stripe redirects back with a paid session, the backend creates the order, clears the saved cart, and sends the order confirmation email to the verified checkout email.
+
+The old direct demo order endpoint is disabled by default. Set `LUXE_ALLOW_DEMO_ORDERS=1` only for local testing without Stripe.
 
 ## Retailer Flow
 
