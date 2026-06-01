@@ -1,6 +1,6 @@
 # LUXE E-commerce Storefront
 
-Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, email OTP checkout, saved carts/wishlists for verified customers, and a separate retailer portal for seller-managed products.
+Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, email OTP checkout, Stripe payment, delivery tracking, saved carts/wishlists for verified customers, and a separate retailer portal for seller-managed products.
 
 ## Features
 
@@ -9,6 +9,7 @@ Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, ema
 - Email-only checkout OTP using PHPMailer SMTP
 - OTP codes are generated on the backend and stored hashed in PostgreSQL
 - Stripe Checkout payment redirect after email verification
+- Delivery tracking number, status, ETA, and tracking page for paid orders
 - Saved addresses, cart items, wishlist items, orders, and notification logs
 - Separate retailer authentication and dashboard
 - Retailers can add, edit, and delete only their own products from the dashboard
@@ -16,6 +17,7 @@ Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, ema
 - Admin approval/rejection for retailer-submitted products
 - Admins can review approved products, open public product pages, and delete any product
 - Admins can view retailer account details and product totals
+- Admins can update order tracking status and email tracking updates to customers
 - Retailer/admin messages inside the retailer portal
 - Public product listings show only approved, active products that have not been deleted
 
@@ -40,6 +42,7 @@ Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, ema
 ├── collections.php
 ├── product.php
 ├── checkout.php
+├── tracking.php
 ├── retailer/
 │   ├── index.php
 │   ├── login.php
@@ -47,7 +50,8 @@ Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, ema
 │   └── dashboard.php
 ├── includes/
 │   ├── database.php
-│   └── notifications.php
+│   ├── notifications.php
+│   └── tracking.php
 ├── assets/
 │   ├── css/
 │   ├── icons/
@@ -153,7 +157,11 @@ Customers can browse the storefront without logging in. Cart and wishlist data s
 
 At checkout, the customer enters an email address. The backend generates a 6-digit OTP with `random_int()`, stores only `password_hash()` output in PostgreSQL, and sends the OTP to the entered email using PHPMailer SMTP.
 
-After OTP verification, the checkout page redirects the customer to Stripe Checkout. Card details are entered only on Stripe's hosted checkout page. When Stripe redirects back with a paid session, the backend creates the order, clears the saved cart, and sends the order confirmation email to the verified checkout email.
+After OTP verification, the checkout page redirects the customer to Stripe Checkout. Card details are entered only on Stripe's hosted checkout page. When Stripe redirects back with a paid session, the backend creates the order, assigns a LUXE tracking number and estimated delivery date, clears the saved cart, and sends the order confirmation plus tracking link to the verified checkout email.
+
+Customers can open `/tracking.php` and enter the tracking number from their email. Logged-in profile order history also links each order to its tracking page.
+
+Admins log in through the retailer portal and open `Orders` from the dashboard to update tracking status, carrier, and estimated delivery. Saving an update sends a tracking update email to the checkout email address when SMTP is configured.
 
 The old direct demo order endpoint is disabled by default. Set `LUXE_ALLOW_DEMO_ORDERS=1` only for local testing without Stripe.
 
@@ -195,6 +203,7 @@ After login, admins land on the same retailer dashboard. There is no public navb
 - `Admin Approval` for pending product review
 - `Approved Products` for live approved listings and product deletion
 - `Retailers` for retailer account details and product totals
+- `Orders` for delivery tracking updates and customer tracking emails
 
 Approving a product sets it to active, approved, and New Arrival so it can appear publicly. Admins can also reply to retailer messages from the dashboard. Public storefront APIs return only products where:
 
@@ -226,7 +235,7 @@ The schema creates:
 - `order_items`
 - `notification_events`
 
-Existing seeded products are assigned to a system owner and remain visible as approved products.
+Existing seeded products are assigned to a system owner and remain visible as approved products. New orders store `tracking_number`, `tracking_status`, `carrier`, and `estimated_delivery` directly in `orders`. Running `scripts/setup-db.sh` also backfills blank tracking numbers and estimated delivery dates for older orders.
 
 Retailer support is part of `db.sql`. Running `scripts/setup-db.sh` creates `retailer_accounts`, `retailer_messages`, and product ownership/approval fields including `vendor_id`, `approval_status`, `description`, `stock_quantity`, and `archived_at`, which is used internally as the product deletion marker.
 
@@ -235,7 +244,7 @@ Retailer account approval is not required for dashboard access; product approval
 ## Verification
 
 ```bash
-for file in api.php includes/database.php includes/notifications.php index.php collections.php product.php checkout.php retailer/index.php retailer/login.php retailer/signup.php retailer/dashboard.php; do
+for file in api.php includes/database.php includes/notifications.php includes/tracking.php index.php collections.php product.php checkout.php tracking.php retailer/index.php retailer/login.php retailer/signup.php retailer/dashboard.php; do
   php -l "$file"
 done
 
