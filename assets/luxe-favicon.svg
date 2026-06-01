@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="luxe-favicon-title">
+  <title id="luxe-favicon-title">LUXE</title>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="#0040df"/>
+  <path d="M20 16v32h26v-7H28V16z" fill="#ffffff"/>
+  <circle cx="46" cy="18" r="4" fill="#b8c3ff"/>
+</svg>

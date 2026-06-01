@@ -116,14 +116,17 @@
             color: #1a1c1c;
         }
     </style>
-<link href="/assets/luxe-mark.svg" rel="icon" type="image/svg+xml"/>
+<link href="/assets/luxe-favicon.svg" rel="icon" type="image/svg+xml"/>
 <link href="/assets/css/site.css" rel="stylesheet"/>
 </head>
 <body class="antialiased">
 <!-- Top Navigation Bar -->
 <header class="sticky top-0 w-full z-50 bg-surface/80 dark:bg-surface/80 backdrop-blur-md shadow-sm border-b border-outline-variant/30">
 <div class="flex justify-between items-center h-20 px-gutter max-w-container-max mx-auto">
-<a class="font-headline-md text-headline-md font-bold text-on-surface dark:text-inverse-on-surface tracking-tighter" href="/">LUXE</a>
+<a class="luxe-site-logo" href="/" aria-label="LUXE home">
+<img src="/assets/luxe-mark.svg" alt="" aria-hidden="true"/>
+<span>LUXE</span>
+</a>
 <nav class="hidden md:flex items-center gap-lg">
 <a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/collections.php?view=new-arrivals">New Arrivals</a>
 <a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/collections.php">Collections</a>
