@@ -16,6 +16,13 @@ function luxe_send_checkout_otp(string $email, string $code): array
 
 function luxe_send_order_confirmation(string $email, array $order): array
 {
+    $tracking = is_array($order["tracking"] ?? null) ? $order["tracking"] : [];
+    $trackingNumber = (string) ($tracking["number"] ?? "");
+    $trackingUrl = (string) ($tracking["url"] ?? "");
+    $trackingStatus = (string) ($tracking["statusLabel"] ?? "Processing");
+    $estimatedDelivery = (string) ($tracking["estimatedDelivery"] ?? "");
+    $carrier = (string) ($tracking["carrier"] ?? "LUXE Delivery");
+
     $items = array_map(static function (array $item): string {
         $name = (string) ($item["name"] ?? "Item");
         $meta = (string) ($item["meta"] ?? "Qty: 1");
@@ -32,11 +39,41 @@ function luxe_send_order_confirmation(string $email, array $order): array
         "Items:",
         implode("\n", $items),
         "",
-        "We will email tracking details when the order ships.",
+        "Delivery tracking:",
+        "Carrier: {$carrier}",
+        "Tracking number: " . ($trackingNumber !== "" ? $trackingNumber : "Pending assignment"),
+        "Status: {$trackingStatus}",
+        "Estimated delivery: " . ($estimatedDelivery !== "" ? $estimatedDelivery : "Pending"),
+        $trackingUrl !== "" ? "Track order: {$trackingUrl}" : "",
     ]);
 
     return [
         "email" => luxe_send_transactional_email($email, "LUXE order confirmation " . (string) ($order["id"] ?? ""), $body),
+    ];
+}
+
+function luxe_send_tracking_update(string $email, array $tracking): array
+{
+    $trackingNumber = (string) ($tracking["number"] ?? "");
+    $trackingUrl = (string) ($tracking["url"] ?? "");
+    $status = (string) ($tracking["statusLabel"] ?? "Processing");
+    $estimatedDelivery = (string) ($tracking["estimatedDelivery"] ?? "");
+    $carrier = (string) ($tracking["carrier"] ?? "LUXE Delivery");
+    $orderNumber = (string) ($tracking["orderNumber"] ?? "");
+
+    $body = implode("\n", [
+        "Your LUXE delivery status has been updated.",
+        "",
+        "Order: {$orderNumber}",
+        "Carrier: {$carrier}",
+        "Tracking number: {$trackingNumber}",
+        "Status: {$status}",
+        "Estimated delivery: " . ($estimatedDelivery !== "" ? $estimatedDelivery : "Pending"),
+        $trackingUrl !== "" ? "Track order: {$trackingUrl}" : "",
+    ]);
+
+    return [
+        "email" => luxe_send_transactional_email($email, "LUXE tracking update " . $trackingNumber, $body),
     ];
 }
 

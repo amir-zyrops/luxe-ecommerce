@@ -279,11 +279,42 @@ CREATE TABLE IF NOT EXISTS orders (
   total NUMERIC(10, 2) NOT NULL CHECK (total >= 0),
   status TEXT NOT NULL DEFAULT 'paid',
   payment_reference TEXT NOT NULL DEFAULT '',
+  tracking_number TEXT NOT NULL DEFAULT '',
+  tracking_status TEXT NOT NULL DEFAULT 'processing',
+  carrier TEXT NOT NULL DEFAULT 'LUXE Delivery',
+  estimated_delivery DATE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT NOT NULL DEFAULT '';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_status TEXT NOT NULL DEFAULT 'processing';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier TEXT NOT NULL DEFAULT 'LUXE Delivery';
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS estimated_delivery DATE;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_tracking_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_tracking_status_check
+CHECK (tracking_status IN ('processing', 'packed', 'in_transit', 'out_for_delivery', 'delivered'));
+
+UPDATE orders
+SET tracking_number = 'LXTRK-' || upper(substr(md5(id::text || order_number || created_at::text), 1, 12))
+WHERE tracking_number = '';
+
+UPDATE orders
+SET carrier = 'LUXE Delivery'
+WHERE carrier = '';
+
+UPDATE orders
+SET estimated_delivery = created_at::date + CASE WHEN shipping > 0 THEN 1 ELSE 5 END
+WHERE estimated_delivery IS NULL;
+
 CREATE INDEX IF NOT EXISTS idx_orders_user_id_created_at
 ON orders (user_id, created_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_orders_tracking_number
+ON orders (tracking_number)
+WHERE tracking_number <> '';
+
+CREATE INDEX IF NOT EXISTS idx_orders_tracking_status
+ON orders (tracking_status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS notification_events (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

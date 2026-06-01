@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/includes/database.php";
 require_once __DIR__ . "/includes/notifications.php";
+require_once __DIR__ . "/includes/tracking.php";
 
 const LUXE_OTP_PURPOSE_CHECKOUT = "checkout";
 
@@ -38,6 +39,10 @@ try {
                 json_response(["ok" => false, "error" => "Product not found."], 404);
             }
             json_response(["ok" => true, "product" => $product]);
+            break;
+
+        case "tracking":
+            handle_tracking_lookup($pdo, $_GET);
             break;
 
         case "request_otp":
@@ -344,7 +349,8 @@ function fetch_addresses(PDO $pdo, int $userId): array
 function fetch_orders(PDO $pdo, int $userId): array
 {
     $stmt = $pdo->prepare(
-        "SELECT id, order_number, total, created_at
+        "SELECT id, order_number, total, created_at, tracking_number, tracking_status, carrier, estimated_delivery,
+                shipping_address->>'city' AS destination_city
          FROM orders
          WHERE user_id = :user_id
          ORDER BY created_at DESC"
@@ -366,6 +372,7 @@ function fetch_orders(PDO $pdo, int $userId): array
             "date" => date("M j, Y", strtotime((string) $row["created_at"])),
             "total" => (float) $row["total"],
             "items" => array_map("map_line_item", $items->fetchAll()),
+            "tracking" => order_tracking_response($row),
         ];
     }
 
@@ -406,6 +413,24 @@ function fetch_public_product(PDO $pdo, string $productId): ?array
     $row = $stmt->fetch();
 
     return $row ? map_product($row) : null;
+}
+
+function handle_tracking_lookup(PDO $pdo, array $input): void
+{
+    $trackingNumber = luxe_tracking_clean_number($input["tracking"] ?? ($input["number"] ?? ""));
+    if ($trackingNumber === "") {
+        json_response(["ok" => false, "error" => "Enter a valid tracking number."], 422);
+    }
+
+    $tracking = luxe_tracking_fetch($pdo, $trackingNumber);
+    if (!$tracking) {
+        json_response(["ok" => false, "error" => "Tracking number was not found."], 404);
+    }
+
+    json_response([
+        "ok" => true,
+        "tracking" => order_tracking_response($tracking),
+    ]);
 }
 
 function map_product(array $row): array
@@ -730,15 +755,21 @@ function create_order(PDO $pdo, int $userId, array $input, ?string $paymentRefer
     $shipping = $checkout["shipping"];
     $tax = $checkout["tax"];
     $total = $checkout["total"];
+    $trackingNumber = luxe_tracking_next_number($pdo);
+    $trackingStatus = "processing";
+    $carrier = "LUXE Delivery";
+    $estimatedDelivery = luxe_tracking_estimated_delivery($shipping);
 
     $pdo->beginTransaction();
     try {
         $orderNumber = next_order_number($pdo);
         $stmt = $pdo->prepare(
             "INSERT INTO orders
-             (order_number, user_id, address_id, shipping_address, subtotal, shipping, tax, total, payment_reference)
+             (order_number, user_id, address_id, shipping_address, subtotal, shipping, tax, total, payment_reference,
+              tracking_number, tracking_status, carrier, estimated_delivery)
              VALUES
-             (:order_number, :user_id, :address_id, CAST(:shipping_address AS jsonb), :subtotal, :shipping, :tax, :total, :payment_reference)
+             (:order_number, :user_id, :address_id, CAST(:shipping_address AS jsonb), :subtotal, :shipping, :tax, :total, :payment_reference,
+              :tracking_number, :tracking_status, :carrier, :estimated_delivery)
              RETURNING id, order_number, total, created_at"
         );
         $stmt->execute([
@@ -751,6 +782,10 @@ function create_order(PDO $pdo, int $userId, array $input, ?string $paymentRefer
             "tax" => $tax,
             "total" => $total,
             "payment_reference" => $paymentReference ?: "DEMO-" . bin2hex(random_bytes(5)),
+            "tracking_number" => $trackingNumber,
+            "tracking_status" => $trackingStatus,
+            "carrier" => $carrier,
+            "estimated_delivery" => $estimatedDelivery,
         ]);
         $order = $stmt->fetch();
 
@@ -785,6 +820,15 @@ function create_order(PDO $pdo, int $userId, array $input, ?string $paymentRefer
         "date" => date("M j, Y", strtotime((string) $order["created_at"])),
         "items" => array_map("map_line_item", $lines),
         "total" => (float) $order["total"],
+        "tracking" => order_tracking_response([
+            "order_number" => $order["order_number"],
+            "tracking_number" => $trackingNumber,
+            "tracking_status" => $trackingStatus,
+            "carrier" => $carrier,
+            "estimated_delivery" => $estimatedDelivery,
+            "created_at" => $order["created_at"],
+            "destination_city" => $address["city"],
+        ]),
     ];
 }
 
@@ -843,6 +887,16 @@ function public_order(array $order): array
 {
     unset($order["_databaseId"]);
     return $order;
+}
+
+function order_tracking_response(array $order): array
+{
+    $tracking = luxe_tracking_public_payload($order);
+    if ($tracking["number"] !== "") {
+        $tracking["url"] = site_url("/tracking.php?tracking=" . rawurlencode($tracking["number"]));
+    }
+
+    return $tracking;
 }
 
 function log_notification_events(PDO $pdo, int $userId, array $delivery, array $recipients = [], ?int $otpId = null, ?int $orderId = null): void
