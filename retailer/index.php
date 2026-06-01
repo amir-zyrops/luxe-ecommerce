@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../includes/database.php";
+require_once __DIR__ . "/../includes/notifications.php";
+require_once __DIR__ . "/../includes/tracking.php";
 
 session_name("LUXESELLERSESSID");
 session_start();
@@ -36,6 +38,7 @@ $myProducts = [];
 $pendingProducts = [];
 $approvedProducts = [];
 $retailerDirectory = [];
+$adminOrders = [];
 $retailerMessages = [];
 $adminMessageRetailers = [];
 $adminMessageThreads = [];
@@ -63,6 +66,9 @@ if ($retailer && $isAdmin && $view === "approved") {
 }
 if ($retailer && $isAdmin && $view === "retailers") {
     $retailerDirectory = fetch_retailer_directory($pdo);
+}
+if ($retailer && $isAdmin && $view === "orders") {
+    $adminOrders = fetch_admin_orders($pdo);
 }
 if ($retailer && $isAdmin) {
     $adminMessageRetailers = fetch_message_retailers($pdo);
@@ -201,7 +207,7 @@ $navLink = "font-label-lg text-label-lg text-secondary dark:text-secondary-fixed
 <a class="<?= $navLink ?>" href="/">Storefront</a>
 <a class="<?= $navLink ?>" href="/collections.php">Collections</a>
 <?php if ($retailer): ?>
-<a class="<?= $navLink ?> <?= in_array($view, ["dashboard", "admin", "approved", "retailers", "add"], true) ? "text-primary dark:text-inverse-primary" : "" ?>" href="index.php?view=dashboard">Dashboard</a>
+<a class="<?= $navLink ?> <?= in_array($view, ["dashboard", "admin", "approved", "retailers", "orders", "add"], true) ? "text-primary dark:text-inverse-primary" : "" ?>" href="index.php?view=dashboard">Dashboard</a>
 <?php else: ?>
 <a class="<?= $navLink ?> <?= in_array($view, ["login", "signup"], true) ? "text-primary dark:text-inverse-primary" : "" ?>" href="login.php">Become a Retailer</a>
 <?php endif; ?>
@@ -325,7 +331,7 @@ Add Product
 <?php endforeach; ?>
 </div>
 <?php if ($isAdmin): ?>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-md">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-md">
 <a class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm hover:border-primary transition-colors" href="index.php?view=admin">
 <span class="material-symbols-outlined text-primary">fact_check</span>
 <h2 class="font-headline-md text-headline-md mt-sm text-on-surface">Admin Approval</h2>
@@ -340,6 +346,11 @@ Add Product
 <span class="material-symbols-outlined text-primary">store</span>
 <h2 class="font-headline-md text-headline-md mt-sm text-on-surface">Retailers</h2>
 <p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">View retailer account details and product counts.</p>
+</a>
+<a class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm hover:border-primary transition-colors" href="index.php?view=orders">
+<span class="material-symbols-outlined text-primary">local_shipping</span>
+<h2 class="font-headline-md text-headline-md mt-sm text-on-surface">Orders</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Update delivery status and resend tracking emails.</p>
 </a>
 </div>
 <?php render_admin_message_panel($adminMessageRetailers, $adminMessageThreads); ?>
@@ -369,6 +380,14 @@ Add Product
 <p class="font-body-md text-body-md text-on-surface-variant mt-xs">Retailer account details and product totals.</p>
 </div>
 <?php render_retailer_directory($retailerDirectory); ?>
+</section>
+<?php elseif ($view === "orders" && $retailer && $isAdmin): ?>
+<section class="space-y-lg">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Orders</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Update delivery tracking and notify the checkout email address.</p>
+</div>
+<?php render_admin_order_tracking_table($adminOrders); ?>
 </section>
 <?php elseif ($view === "add" && $retailer && !$isAdmin): ?>
 <?php
@@ -725,6 +744,82 @@ function render_retailer_directory(array $retailers): void
 <?php
 }
 
+function render_admin_order_tracking_table(array $orders): void
+{
+    if (!$orders): ?>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-lg text-center">
+<p class="font-body-md text-body-md text-on-surface-variant">No customer orders found.</p>
+</div>
+<?php
+        return;
+    endif;
+?>
+<div class="overflow-x-auto bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm">
+<table class="w-full text-left">
+<thead class="border-b border-outline-variant/30">
+<tr>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Order</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Customer</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Tracking</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Delivery</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Update</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($orders as $order): ?>
+<?php $tracking = luxe_tracking_public_payload($order); ?>
+<tr class="border-b border-outline-variant/20 last:border-0 align-top">
+<td class="p-md min-w-40">
+<p class="font-label-lg text-label-lg text-on-surface"><?= e($order["order_number"]) ?></p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">$<?= e(number_format((float) $order["total"], 2)) ?></p>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><?= e(date("M j, Y", strtotime((string) $order["created_at"]))) ?></p>
+</td>
+<td class="p-md min-w-52">
+<p class="font-body-sm text-body-sm text-on-surface"><?= e($order["email"]) ?></p>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><?= e($tracking["destinationCity"] ?: "Destination pending") ?></p>
+</td>
+<td class="p-md min-w-56">
+<a class="font-label-md text-label-md text-primary hover:opacity-80 transition-opacity" href="/tracking.php?tracking=<?= e($tracking["number"]) ?>"><?= e($tracking["number"]) ?></a>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><?= e($tracking["carrier"]) ?></p>
+</td>
+<td class="p-md min-w-48">
+<span class="<?= tracking_badge_class((string) $tracking["status"]) ?>"><?= e($tracking["statusLabel"]) ?></span>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">ETA <?= e($tracking["estimatedDelivery"] ?: "Pending") ?></p>
+</td>
+<td class="p-md min-w-[360px]">
+<form class="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-sm items-end" action="index.php?view=orders" method="post">
+<input name="action" type="hidden" value="admin_update_tracking"/>
+<input name="order_id" type="hidden" value="<?= e((string) $order["id"]) ?>"/>
+<div>
+<label class="block font-label-md text-label-md mb-xs text-on-surface" for="tracking-status-<?= e((string) $order["id"]) ?>">Status</label>
+<select class="w-full px-sm py-xs border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none" id="tracking-status-<?= e((string) $order["id"]) ?>" name="tracking_status" required>
+<?php foreach (luxe_tracking_status_labels() as $status => $label): ?>
+<option value="<?= e($status) ?>" <?= $tracking["status"] === $status ? "selected" : "" ?>><?= e($label) ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-xs text-on-surface" for="tracking-carrier-<?= e((string) $order["id"]) ?>">Carrier</label>
+<input class="w-full px-sm py-xs border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none" id="tracking-carrier-<?= e((string) $order["id"]) ?>" maxlength="80" name="carrier" required type="text" value="<?= e($order["carrier"] ?: "LUXE Delivery") ?>"/>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-xs text-on-surface" for="tracking-eta-<?= e((string) $order["id"]) ?>">ETA</label>
+<input class="w-full px-sm py-xs border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none" id="tracking-eta-<?= e((string) $order["id"]) ?>" name="estimated_delivery" type="date" value="<?= e((string) $order["estimated_delivery"]) ?>"/>
+</div>
+<button class="inline-flex items-center justify-center gap-xs bg-primary text-on-primary px-sm py-xs rounded-lg font-label-md text-label-md hover:opacity-90 active:scale-95 transition-all" type="submit">
+<span class="material-symbols-outlined text-[18px]">send</span>
+Update
+</button>
+</form>
+</td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+<?php
+}
+
 function render_retailer_message_panel(array $messages): void
 {
 ?>
@@ -860,6 +955,9 @@ function handle_retailer_post(PDO $pdo): void
             break;
         case "admin_delete_product":
             handle_admin_delete_product($pdo);
+            break;
+        case "admin_update_tracking":
+            handle_admin_update_tracking($pdo);
             break;
         default:
             throw new DomainException("Unknown retailer action.");
@@ -1185,6 +1283,85 @@ function handle_admin_delete_product(PDO $pdo): void
     redirect_to_retailer(admin_return_view($_POST["return_view"] ?? "dashboard"));
 }
 
+function handle_admin_update_tracking(PDO $pdo): void
+{
+    $account = require_retailer_account($pdo);
+    if ($account["role"] !== "admin") {
+        throw new DomainException("Admin access is required.");
+    }
+
+    $orderId = retailer_int($_POST["order_id"] ?? 0, 1, 2147483647);
+    $status = luxe_tracking_clean_status($_POST["tracking_status"] ?? "");
+    $carrier = retailer_text($_POST["carrier"] ?? "LUXE Delivery", 80) ?: "LUXE Delivery";
+    $estimatedDelivery = retailer_date($_POST["estimated_delivery"] ?? "");
+
+    if ($status === "") {
+        throw new DomainException("Choose a valid tracking status.");
+    }
+
+    $stmt = $pdo->prepare(
+        "UPDATE orders
+         SET tracking_status = :tracking_status,
+             carrier = :carrier,
+             estimated_delivery = :estimated_delivery
+         WHERE id = :id
+         RETURNING id, user_id, order_number, total, tracking_number, tracking_status, carrier, estimated_delivery, created_at,
+                   shipping_address->>'city' AS destination_city"
+    );
+    $stmt->execute([
+        "id" => $orderId,
+        "tracking_status" => $status,
+        "carrier" => $carrier,
+        "estimated_delivery" => $estimatedDelivery,
+    ]);
+    $order = $stmt->fetch();
+    if (!$order) {
+        throw new DomainException("Order not found.");
+    }
+
+    $emailStmt = $pdo->prepare("SELECT email FROM users WHERE id = :id");
+    $emailStmt->execute(["id" => (int) $order["user_id"]]);
+    $email = retailer_email($emailStmt->fetchColumn() ?: "");
+    if ($email === "") {
+        throw new DomainException("Order customer email was not found.");
+    }
+
+    $tracking = luxe_tracking_public_payload($order);
+    $tracking["url"] = retailer_site_url("/tracking.php?tracking=" . rawurlencode($tracking["number"]));
+    $delivery = luxe_send_tracking_update($email, $tracking);
+    log_retailer_notification_events($pdo, (int) $order["user_id"], (int) $order["id"], $email, $delivery);
+
+    $sent = luxe_notification_was_sent($delivery["email"] ?? null);
+    set_retailer_flash("success", $sent ? "Tracking updated and email sent." : "Tracking updated. Email delivery is not configured.");
+    redirect_to_retailer("orders");
+}
+
+function log_retailer_notification_events(PDO $pdo, int $userId, int $orderId, string $email, array $delivery): void
+{
+    $stmt = $pdo->prepare(
+        "INSERT INTO notification_events
+         (user_id, order_id, channel, recipient, provider, status, error_message)
+         VALUES
+         (:user_id, :order_id, :channel, :recipient, :provider, :status, :error_message)"
+    );
+
+    foreach ($delivery as $channel => $result) {
+        if (!is_array($result)) {
+            continue;
+        }
+
+        $stmt->execute([
+            "user_id" => $userId,
+            "order_id" => $orderId,
+            "channel" => retailer_text($channel, 20),
+            "recipient" => $email,
+            "provider" => retailer_text($result["provider"] ?? "", 80),
+            "status" => retailer_text($result["status"] ?? "failed", 20),
+            "error_message" => retailer_text($result["error"] ?? "", 500),
+        ]);
+    }
+}
+
 function sanitize_retailer_product_input(): array
 {
     $name = retailer_text($_POST["name"] ?? "", 180);
@@ -1375,6 +1552,19 @@ function fetch_retailer_directory(PDO $pdo): array
     return $stmt->fetchAll();
 }
 
+function fetch_admin_orders(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        "SELECT o.id, o.order_number, o.total, o.status, o.tracking_number, o.tracking_status, o.carrier,
+                o.estimated_delivery, o.created_at, o.shipping_address->>'city' AS destination_city, u.email
+         FROM orders o
+         JOIN users u ON u.id = o.user_id
+         ORDER BY o.created_at DESC
+         LIMIT 100"
+    );
+    return $stmt->fetchAll();
+}
+
 function fetch_retailer_messages(PDO $pdo, int $retailerId): array
 {
     $stmt = $pdo->prepare(
@@ -1513,6 +1703,17 @@ function status_badge_class(string $status): string
     };
 }
 
+function tracking_badge_class(string $status): string
+{
+    $base = "inline-flex px-sm py-xs rounded-full font-label-md text-label-md ";
+    return match ($status) {
+        "delivered" => $base . "bg-primary-fixed text-on-primary-fixed",
+        "out_for_delivery", "in_transit" => $base . "bg-primary-fixed text-on-primary-fixed",
+        "packed" => $base . "bg-surface-container-high text-primary",
+        default => $base . "bg-surface-container-high text-on-surface-variant",
+    };
+}
+
 function visibility_badge_class(bool $active): string
 {
     $base = "inline-flex px-sm py-xs rounded-full font-label-md text-label-md ";
@@ -1541,7 +1742,7 @@ function retailer_slug(mixed $value): string
 function admin_return_view(mixed $value): string
 {
     $view = retailer_slug($value);
-    return in_array($view, ["dashboard", "admin", "approved", "retailers"], true) ? $view : "dashboard";
+    return in_array($view, ["dashboard", "admin", "approved", "retailers", "orders"], true) ? $view : "dashboard";
 }
 
 function retailer_url(mixed $value): string
@@ -1619,6 +1820,17 @@ function retailer_int(mixed $value, int $min, int $max): int
     return min($max, max($min, $number));
 }
 
+function retailer_date(mixed $value): ?string
+{
+    $date = trim((string) $value);
+    if ($date === "") {
+        return null;
+    }
+
+    $parsed = DateTimeImmutable::createFromFormat("Y-m-d", $date);
+    return $parsed && $parsed->format("Y-m-d") === $date ? $date : null;
+}
+
 function retailer_csv(mixed $value): array
 {
     $parts = array_map(
@@ -1632,6 +1844,14 @@ function retailer_csv(mixed $value): array
 function e(mixed $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, "UTF-8");
+}
+
+function retailer_site_url(string $path): string
+{
+    $host = $_SERVER["HTTP_HOST"] ?? "127.0.0.1:8000";
+    $https = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off")
+        || (($_SERVER["HTTP_X_FORWARDED_PROTO"] ?? "") === "https");
+    return ($https ? "https" : "http") . "://" . $host . $path;
 }
 
 function set_retailer_flash(string $type, string $message): void
