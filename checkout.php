@@ -116,27 +116,28 @@
             color: #1a1c1c;
         }
     </style>
-<link href="assets/luxe-mark.svg" rel="icon" type="image/svg+xml"/>
-<link href="assets/css/site.css" rel="stylesheet"/>
+<link href="/assets/luxe-mark.svg" rel="icon" type="image/svg+xml"/>
+<link href="/assets/css/site.css" rel="stylesheet"/>
 </head>
 <body class="antialiased">
 <!-- Top Navigation Bar -->
 <header class="sticky top-0 w-full z-50 bg-surface/80 dark:bg-surface/80 backdrop-blur-md shadow-sm border-b border-outline-variant/30">
 <div class="flex justify-between items-center h-20 px-gutter max-w-container-max mx-auto">
-<a class="font-headline-md text-headline-md font-bold text-on-surface dark:text-inverse-on-surface tracking-tighter" href="index.php">LUXE</a>
+<a class="font-headline-md text-headline-md font-bold text-on-surface dark:text-inverse-on-surface tracking-tighter" href="/">LUXE</a>
 <nav class="hidden md:flex items-center gap-lg">
-<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="collections.php?view=new-arrivals">New Arrivals</a>
-<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="collections.php">Collections</a>
-<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="collections.php?segment=men">Men</a>
-<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="collections.php?segment=women">Women</a>
-<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="collections.php?segment=accessories">Accessories</a>
+<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/collections.php?view=new-arrivals">New Arrivals</a>
+<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/collections.php">Collections</a>
+<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/collections.php?segment=men">Men</a>
+<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/collections.php?segment=women">Women</a>
+<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/collections.php?segment=accessories">Accessories</a>
+<a class="font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/retailer/login.php">Become a Retailer</a>
 </nav>
 <div class="flex items-center gap-md">
-<a aria-label="View checkout" class="relative inline-flex items-center text-primary dark:text-inverse-primary hover:opacity-80 transition-opacity" href="checkout.php">
+<a aria-label="View checkout" class="relative inline-flex items-center text-primary dark:text-inverse-primary hover:opacity-80 transition-opacity" href="/checkout.php">
 <span class="material-symbols-outlined text-primary dark:text-inverse-primary" data-icon="shopping_bag">shopping_bag</span>
 <span class="absolute -top-0.5 -right-1 min-w-[1rem] h-4 px-0.5 bg-primary text-on-primary text-[10px] leading-none flex items-center justify-center rounded-full hidden" data-bag-count="">0</span>
 	</a>
-	<a aria-label="Account" class="material-symbols-outlined text-primary dark:text-inverse-primary hover:opacity-80 transition-opacity" data-icon="person" href="index.php">person</a>
+	<a aria-label="Account" class="material-symbols-outlined text-primary dark:text-inverse-primary hover:opacity-80 transition-opacity" data-icon="person" href="/">person</a>
 	<button class="md:hidden p-base text-primary" type="button">
 	<span class="material-symbols-outlined">menu</span>
 	</button>
@@ -268,7 +269,7 @@
 <div class="space-y-md" data-checkout-cart-items=""></div>
 <div class="rounded-lg border border-outline-variant/40 bg-surface-container-low p-md text-center" data-checkout-empty="">
 <p class="font-body-md text-body-md text-on-surface-variant mb-sm">Your bag is empty.</p>
-<a class="font-label-lg text-label-lg text-primary underline underline-offset-4" href="collections.php">Continue shopping</a>
+<a class="font-label-lg text-label-lg text-primary underline underline-offset-4" href="/collections.php">Continue shopping</a>
 </div>
 </div>
 <!-- Price Breakdown -->
@@ -308,16 +309,16 @@
 <div>
 <h5 class="font-label-lg text-label-lg text-on-surface font-semibold mb-md">Support</h5>
 <ul class="space-y-sm font-body-sm text-body-sm text-on-surface-variant dark:text-on-surface-variant/80">
-<li><a class="hover:text-primary transition-colors" href="product.php#shipping-returns">Shipping &amp; Returns</a></li>
-<li><a class="hover:text-primary transition-colors" href="checkout.php">Contact Us</a></li>
-<li><a class="hover:text-primary transition-colors" href="index.php#sustainability">Sustainability</a></li>
+<li><a class="hover:text-primary transition-colors" href="/product.php#shipping-returns">Shipping &amp; Returns</a></li>
+<li><a class="hover:text-primary transition-colors" href="/checkout.php">Contact Us</a></li>
+<li><a class="hover:text-primary transition-colors" href="/#sustainability">Sustainability</a></li>
 </ul>
 </div>
 <div>
 <h5 class="font-label-lg text-label-lg text-on-surface font-semibold mb-md">Legal</h5>
 <ul class="space-y-sm font-body-sm text-body-sm text-on-surface-variant dark:text-on-surface-variant/80">
-<li><a class="hover:text-primary transition-colors" href="checkout.php">Privacy Policy</a></li>
-<li><a class="hover:text-primary transition-colors" href="checkout.php">Terms of Service</a></li>
+<li><a class="hover:text-primary transition-colors" href="/checkout.php">Privacy Policy</a></li>
+<li><a class="hover:text-primary transition-colors" href="/checkout.php">Terms of Service</a></li>
 </ul>
 </div>
 <div>
@@ -341,10 +342,10 @@
         </button>
       </div>
 
-      <!-- Step 1: Input Email/Phone & Confirm Details -->
+      <!-- Step 1: Input Email & Confirm Details -->
       <div id="otp-modal-step-1" class="space-y-md">
         <p class="font-body-sm text-body-sm text-on-surface-variant">
-          Confirm your items and enter your details below. We'll send a 4-digit verification code to your email and phone to link this order to your profile.
+          Confirm your items and enter your email below. We'll send a 6-digit verification code to link this order to your profile.
         </p>
 
         <!-- Cart Items Preview -->
@@ -378,10 +379,6 @@
             <label class="block font-label-md text-label-md mb-xs text-on-surface">Email Address</label>
             <input id="checkout-otp-email" type="email" class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none transition-colors font-body-md" placeholder="name@example.com" />
           </div>
-          <div>
-            <label class="block font-label-md text-label-md mb-xs text-on-surface">Phone Number</label>
-            <input id="checkout-otp-phone" type="tel" class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none transition-colors font-body-md" placeholder="+1 (555) 000-0000" />
-          </div>
         </div>
 
         <button type="button" class="w-full py-md bg-primary text-on-primary font-label-lg text-label-lg rounded-lg shadow-md hover:opacity-90 active:scale-[0.98] transition-all" data-send-otp-btn="">
@@ -393,7 +390,7 @@
       <div id="otp-modal-step-2" class="space-y-md hidden">
         <div class="text-center p-md bg-primary/10 text-on-primary-fixed-variant rounded-lg border border-outline-variant/30 space-y-xs">
           <p class="font-label-lg text-label-lg text-primary" data-otp-status-title="">Verification Code Sent</p>
-          <p class="font-body-sm text-body-sm text-on-surface-variant" data-otp-status-message="">We sent a code to <span id="display-phone" class="font-semibold text-on-surface"></span> and <span id="display-email" class="font-semibold text-on-surface"></span>.</p>
+          <p class="font-body-sm text-body-sm text-on-surface-variant" data-otp-status-message="">We sent a code to <span id="display-email" class="font-semibold text-on-surface"></span>.</p>
           <div class="hidden mt-xs py-xs px-md bg-surface-container-lowest rounded border border-outline-variant/30 inline-block font-mono text-label-lg text-primary" data-debug-otp-box="">
             DEV OTP: <span id="debug-otp-display" class="font-bold tracking-widest text-[16px]"></span>
           </div>
@@ -416,5 +413,5 @@
     </div>
   </div>
 </div>
-<script src="assets/js/site.js"></script>
+<script src="/assets/js/site.js"></script>
 </body></html>

@@ -14,6 +14,9 @@ PORT="${LUXE_PORT:-8000}"
 
 cd "$PROJECT_DIR"
 
+echo "LUXE storefront: http://$HOST:$PORT/"
+echo "Retailer portal: http://$HOST:$PORT/retailer/login.php"
+
 exec php \
   -d extension=pgsql \
   -d extension=pdo_pgsql \
