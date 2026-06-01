@@ -10,9 +10,13 @@ Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, ema
 - OTP codes are generated on the backend and stored hashed in PostgreSQL
 - Saved addresses, cart items, wishlist items, orders, and notification logs
 - Separate retailer authentication and dashboard
-- Retailers can add, edit, and archive only their own products
+- Retailers can add, edit, and delete only their own products from the dashboard
+- Product images can be provided by URL or uploaded locally
 - Admin approval/rejection for retailer-submitted products
-- Public product listings show only approved, active, non-archived products
+- Admins can review approved products, open public product pages, and delete any product
+- Admins can view retailer account details and product totals
+- Retailer/admin messages inside the retailer portal
+- Public product listings show only approved, active products that have not been deleted
 
 ## Tech Stack
 
@@ -46,6 +50,8 @@ Responsive PHP and PostgreSQL e-commerce storefront with anonymous browsing, ema
 │   ├── css/
 │   ├── icons/
 │   ├── js/
+│   ├── uploads/        # runtime product uploads, ignored by Git
+│   ├── luxe-favicon.svg
 │   └── luxe-mark.svg
 ├── scripts/
 │   ├── env-loader.sh
@@ -145,7 +151,18 @@ New sellers use the `Create a retailer account` link below the login form. Retai
 - Password
 - Confirm password
 
-Retailers can manage only products owned by their retailer account. New and edited retailer products are saved as `pending` until an admin approves them.
+Retailers manage products directly from the dashboard. The top retailer navigation stays focused on `Storefront`, `Collections`, and `Dashboard`; product actions live inside the dashboard table and the blue add-product button.
+
+Product images can be added in either of two ways:
+
+- Paste an image URL
+- Upload a JPG, PNG, WebP, or GIF file up to 5 MB
+
+Uploaded product images are stored under `assets/uploads/products/` at runtime and are ignored by Git. New and edited retailer products are saved as `pending` until an admin approves them.
+
+After admin approval, retailer products are published as active New Arrivals and are returned by the public products API for the Collections page.
+
+Retailers can also send messages to the admin team from the dashboard.
 
 ## Admin Approval
 
@@ -155,7 +172,13 @@ Set `RETAILER_ADMIN_EMAIL` and `RETAILER_ADMIN_PASSWORD` in `.env`, then log in 
 http://127.0.0.1:8080/retailer/login.php
 ```
 
-Admins can approve or reject pending retailer products. Public storefront APIs return only products where:
+After login, admins land on the same retailer dashboard. There is no public navbar tab for admin tools. From the dashboard, admins can open:
+
+- `Admin Approval` for pending product review
+- `Approved Products` for live approved listings and product deletion
+- `Retailers` for retailer account details and product totals
+
+Approving a product sets it to active, approved, and New Arrival so it can appear publicly. Admins can also reply to retailer messages from the dashboard. Public storefront APIs return only products where:
 
 ```text
 active = true
@@ -177,6 +200,7 @@ The schema creates:
 - `otp_codes`
 - `retailer_accounts`
 - `products`
+- `retailer_messages`
 - `addresses`
 - `cart_items`
 - `wishlist_items`
@@ -186,7 +210,7 @@ The schema creates:
 
 Existing seeded products are assigned to a system owner and remain visible as approved products.
 
-Retailer support is part of `db.sql`. Running `scripts/setup-db.sh` creates `retailer_accounts` and adds product ownership/approval fields including `vendor_id`, `approval_status`, `description`, `stock_quantity`, and `archived_at`.
+Retailer support is part of `db.sql`. Running `scripts/setup-db.sh` creates `retailer_accounts`, `retailer_messages`, and product ownership/approval fields including `vendor_id`, `approval_status`, `description`, `stock_quantity`, and `archived_at`, which is used internally as the product deletion marker.
 
 Retailer account approval is not required for dashboard access; product approval only controls whether submitted products appear publicly.
 
