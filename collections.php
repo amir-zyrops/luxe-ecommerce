@@ -582,6 +582,7 @@ $newArrivalAttr = $product["newArrival"] ? ' data-new-arrival="true"' : "";
 <h4 class="font-label-lg text-label-lg text-on-surface dark:text-inverse-on-surface font-semibold">Shop</h4>
 <ul class="space-y-base font-body-sm text-body-sm text-on-surface-variant dark:text-on-surface-variant/80">
 <li><a class="hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/#sustainability">Sustainability</a></li>
+<li><a class="hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/tracking.php">Track Order</a></li>
 <li><a class="hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/product.php#shipping-returns">Shipping &amp; Returns</a></li>
 <li><a class="hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/checkout.php">Contact Us</a></li>
 </ul>

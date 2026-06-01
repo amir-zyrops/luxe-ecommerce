@@ -311,6 +311,7 @@
 </div>
 <div class="flex flex-col gap-base">
 <h4 class="font-label-lg text-label-lg text-on-surface mb-base">Support</h4>
+<a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="/tracking.php">Track Order</a>
 <a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="/product.php#shipping-returns">Shipping &amp; Returns</a>
 <a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="/checkout.php">Contact Us</a>
 <a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="/checkout.php">Terms of Service</a>

@@ -355,6 +355,7 @@
 <div>
 <h5 class="font-label-lg text-label-lg text-on-surface mb-md">Support</h5>
 <ul class="space-y-sm">
+<li><a class="font-body-sm text-body-sm text-on-surface-variant dark:text-on-surface-variant/80 hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/tracking.php">Track Order</a></li>
 <li><a class="font-body-sm text-body-sm text-on-surface-variant dark:text-on-surface-variant/80 hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/product.php#shipping-returns">Shipping &amp; Returns</a></li>
 <li><a class="font-body-sm text-body-sm text-on-surface-variant dark:text-on-surface-variant/80 hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/checkout.php">Contact Us</a></li>
 <li><a class="font-body-sm text-body-sm text-on-surface-variant dark:text-on-surface-variant/80 hover:text-primary dark:hover:text-inverse-primary transition-colors" href="/#sustainability">Sustainability</a></li>

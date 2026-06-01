@@ -2398,7 +2398,7 @@
           setShipping(options[0]);
         }
         clearStripeReturnParams();
-        showToast("Payment successful. Your order has been placed.");
+        showToast("Payment successful. Tracking details were emailed.");
       } catch (error) {
         showToast(error.message || "Could not confirm Stripe payment.", "error");
       }
@@ -2783,6 +2783,10 @@
             const dateStr = escapeHtml(order.date || "");
             const idStr = escapeHtml(order.id || "");
             const totalStr = money.format(Number(order.total || 0));
+            const tracking = order.tracking || {};
+            const trackingNumber = escapeHtml(tracking.number || "");
+            const trackingStatus = escapeHtml(tracking.statusLabel || "");
+            const trackingUrl = escapeHtml(tracking.url || (tracking.number ? `/tracking.php?tracking=${encodeURIComponent(tracking.number)}` : ""));
 
             let itemsHtml = "";
             if (Array.isArray(order.items)) {
@@ -2790,6 +2794,12 @@
                 itemsHtml += `<div class="text-body-sm text-on-surface-variant">• ${escapeHtml(item.name)} (${escapeHtml(item.meta || "Qty: 1")})</div>`;
               });
             }
+            const trackingHtml = trackingNumber
+              ? `<div class="flex justify-between items-center text-body-sm pt-xs border-t border-outline-variant/10">
+                  <span class="text-on-surface-variant">Tracking:</span>
+                  <a class="font-semibold text-primary hover:opacity-80 transition-opacity" href="${trackingUrl}">${trackingNumber}${trackingStatus ? ` - ${trackingStatus}` : ""}</a>
+                </div>`
+              : "";
 
             row.innerHTML = `
               <div class="flex justify-between items-center font-label-md text-label-md">
@@ -2803,6 +2813,7 @@
                 <span class="text-on-surface-variant">Total Paid:</span>
                 <span class="font-semibold text-on-surface">${totalStr}</span>
               </div>
+              ${trackingHtml}
             `;
             listContainer.appendChild(row);
           });

@@ -302,6 +302,7 @@
 <div>
 <h5 class="font-label-lg text-label-lg text-on-surface font-semibold mb-md">Support</h5>
 <ul class="space-y-sm font-body-sm text-body-sm text-on-surface-variant dark:text-on-surface-variant/80">
+<li><a class="hover:text-primary transition-colors" href="/tracking.php">Track Order</a></li>
 <li><a class="hover:text-primary transition-colors" href="/product.php#shipping-returns">Shipping &amp; Returns</a></li>
 <li><a class="hover:text-primary transition-colors" href="/checkout.php">Contact Us</a></li>
 <li><a class="hover:text-primary transition-colors" href="/#sustainability">Sustainability</a></li>
