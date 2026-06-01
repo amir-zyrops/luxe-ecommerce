@@ -32,6 +32,14 @@ try {
             json_response(["ok" => true, "products" => fetch_products($pdo)]);
             break;
 
+        case "product":
+            $product = fetch_public_product($pdo, clean_slug($_GET["product"] ?? ""));
+            if (!$product) {
+                json_response(["ok" => false, "error" => "Product not found."], 404);
+            }
+            json_response(["ok" => true, "product" => $product]);
+            break;
+
         case "request_otp":
             require_method("POST");
             handle_request_otp($pdo, json_input());
@@ -160,14 +168,13 @@ function require_user(): int
 function handle_request_otp(PDO $pdo, array $input): void
 {
     // User email is read from the checkout form payload, never from configuration.
-    $email = strtolower(trim((string) ($_POST["email"] ?? ($input["email"] ?? ""))));
-    $phone = clean_text($_POST["phone"] ?? ($input["phone"] ?? ""), 50);
+    $email = normalized_email($_POST["email"] ?? ($input["email"] ?? ""));
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !$phone) {
-        throw new DomainException("Enter a valid email and phone number.");
+    if (!$email) {
+        throw new DomainException("Enter a valid email address.");
     }
 
-    $userId = upsert_user($pdo, $email, $phone);
+    $userId = upsert_user($pdo, $email);
 
     // The OTP is generated on the backend only.
     $code = (string) random_int(100000, 999999);
@@ -177,14 +184,13 @@ function handle_request_otp(PDO $pdo, array $input): void
 
     // The target email, purpose, hash, expiry, attempts, and verified status are stored here.
     $stmt = $pdo->prepare(
-        "INSERT INTO otp_codes (user_id, email, phone, purpose, code_hash, attempts, verified, expires_at)
-         VALUES (:user_id, :email, :phone, :purpose, :code_hash, 0, false, now() + interval '10 minutes')"
+        "INSERT INTO otp_codes (user_id, email, purpose, code_hash, attempts, verified, expires_at)
+         VALUES (:user_id, :email, :purpose, :code_hash, 0, false, now() + interval '10 minutes')"
         . " RETURNING id"
     );
     $stmt->execute([
         "user_id" => $userId,
         "email" => $email,
-        "phone" => $phone,
         "purpose" => LUXE_OTP_PURPOSE_CHECKOUT,
         "code_hash" => $codeHash,
     ]);
@@ -213,10 +219,9 @@ function handle_request_otp(PDO $pdo, array $input): void
 function handle_verify_otp(PDO $pdo, array $input): void
 {
     $email = normalized_email($_POST["email"] ?? ($input["email"] ?? ""));
-    $phone = clean_text($_POST["phone"] ?? ($input["phone"] ?? ""), 50);
     $code = preg_replace("/\D+/", "", (string) ($_POST["code"] ?? ($input["code"] ?? "")));
 
-    if (!$email || !$phone || strlen($code) !== 6) {
+    if (!$email || strlen($code) !== 6) {
         throw new DomainException("Invalid verification details.");
     }
 
@@ -224,7 +229,6 @@ function handle_verify_otp(PDO $pdo, array $input): void
         "SELECT id, user_id, code_hash
          FROM otp_codes
          WHERE email = :email
-           AND phone = :phone
            AND purpose = :purpose
            AND verified = false
            AND expires_at > now()
@@ -232,7 +236,7 @@ function handle_verify_otp(PDO $pdo, array $input): void
          ORDER BY created_at DESC
          LIMIT 5"
     );
-    $stmt->execute(["email" => $email, "phone" => $phone, "purpose" => LUXE_OTP_PURPOSE_CHECKOUT]);
+    $stmt->execute(["email" => $email, "purpose" => LUXE_OTP_PURPOSE_CHECKOUT]);
     $codes = $stmt->fetchAll();
 
     foreach ($codes as $otp) {
@@ -241,8 +245,6 @@ function handle_verify_otp(PDO $pdo, array $input): void
             try {
                 $pdo->prepare("UPDATE otp_codes SET verified = true, verified_at = now() WHERE id = :id")
                     ->execute(["id" => $otp["id"]]);
-                $pdo->prepare("UPDATE users SET phone = :phone WHERE id = :id")
-                    ->execute(["phone" => $phone, "id" => $otp["user_id"]]);
                 $_SESSION["luxe_user_id"] = (int) $otp["user_id"];
                 $pdo->commit();
             } catch (Throwable $error) {
@@ -263,30 +265,29 @@ function handle_verify_otp(PDO $pdo, array $input): void
         "UPDATE otp_codes
          SET attempts = attempts + 1
          WHERE email = :email
-           AND phone = :phone
            AND purpose = :purpose
            AND verified = false
            AND expires_at > now()"
-    )->execute(["email" => $email, "phone" => $phone, "purpose" => LUXE_OTP_PURPOSE_CHECKOUT]);
+    )->execute(["email" => $email, "purpose" => LUXE_OTP_PURPOSE_CHECKOUT]);
 
     json_response(["ok" => false, "error" => "Invalid or expired verification code."], 401);
 }
 
-function upsert_user(PDO $pdo, string $email, string $phone): int
+function upsert_user(PDO $pdo, string $email): int
 {
     $stmt = $pdo->prepare(
-        "INSERT INTO users (email, phone)
-         VALUES (:email, :phone)
-         ON CONFLICT (email) DO UPDATE SET phone = EXCLUDED.phone, updated_at = now()
+        "INSERT INTO users (email)
+         VALUES (:email)
+         ON CONFLICT (email) DO UPDATE SET updated_at = now()
          RETURNING id"
     );
-    $stmt->execute(["email" => $email, "phone" => $phone]);
+    $stmt->execute(["email" => $email]);
     return (int) $stmt->fetchColumn();
 }
 
 function fetch_profile(PDO $pdo, int $userId): ?array
 {
-    $stmt = $pdo->prepare("SELECT id, email, phone FROM users WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT id, email FROM users WHERE id = :id");
     $stmt->execute(["id" => $userId]);
     $user = $stmt->fetch();
     if (!$user) {
@@ -296,7 +297,6 @@ function fetch_profile(PDO $pdo, int $userId): ?array
     return [
         "id" => (string) $user["id"],
         "email" => $user["email"],
-        "phone" => $user["phone"],
         "addresses" => fetch_addresses($pdo, $userId),
         "orders" => fetch_orders($pdo, $userId),
     ];
@@ -360,28 +360,56 @@ function fetch_orders(PDO $pdo, int $userId): array
 function fetch_products(PDO $pdo): array
 {
     $stmt = $pdo->query(
-        "SELECT product_slug, name, category, segment, price, image_url, default_color,
+        "SELECT product_slug, name, description, category, segment, price, stock_quantity, image_url, default_color,
                 available_colors, available_sizes, is_new_arrival, popularity
          FROM products
          WHERE active = true
+           AND approval_status = 'approved'
+           AND archived_at IS NULL
          ORDER BY product_slug"
     );
 
-    return array_map(static function (array $row): array {
-        return [
-            "id" => $row["product_slug"],
-            "name" => $row["name"],
-            "category" => $row["category"],
-            "segment" => $row["segment"],
-            "price" => (float) $row["price"],
-            "image" => $row["image_url"],
-            "defaultColor" => $row["default_color"],
-            "colors" => json_decode((string) $row["available_colors"], true) ?: [],
-            "sizes" => json_decode((string) $row["available_sizes"], true) ?: [],
-            "newArrival" => (bool) $row["is_new_arrival"],
-            "popularity" => (int) $row["popularity"],
-        ];
-    }, $stmt->fetchAll());
+    return array_map("map_product", $stmt->fetchAll());
+}
+
+function fetch_public_product(PDO $pdo, string $productId): ?array
+{
+    if (!$productId) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT product_slug, name, description, category, segment, price, stock_quantity, image_url, default_color,
+                available_colors, available_sizes, is_new_arrival, popularity
+         FROM products
+         WHERE product_slug = :product_slug
+           AND active = true
+           AND approval_status = 'approved'
+           AND archived_at IS NULL"
+    );
+    $stmt->execute(["product_slug" => $productId]);
+    $row = $stmt->fetch();
+
+    return $row ? map_product($row) : null;
+}
+
+function map_product(array $row): array
+{
+    return [
+        "id" => $row["product_slug"],
+        "name" => $row["name"],
+        "description" => $row["description"],
+        "category" => $row["category"],
+        "segment" => $row["segment"],
+        "price" => (float) $row["price"],
+        "stockQuantity" => (int) $row["stock_quantity"],
+        "image" => $row["image_url"],
+        "defaultColor" => $row["default_color"],
+        "colors" => json_decode((string) $row["available_colors"], true) ?: [],
+        "sizes" => json_decode((string) $row["available_sizes"], true) ?: [],
+        "newArrival" => (bool) $row["is_new_arrival"],
+        "popularity" => (int) $row["popularity"],
+    ];
 }
 
 function fetch_cart_items(PDO $pdo, int $userId): array
@@ -702,11 +730,21 @@ function sanitize_cart_item(PDO $pdo, array $item, bool $useCatalogPrice = false
     }
 
     $productId = clean_slug($item["productId"] ?? ($item["product_id"] ?? ""));
-    $catalogPrice = $useCatalogPrice && $productId ? catalog_price($pdo, $productId) : null;
+    $knownProductId = known_product_id($pdo, $productId);
+    $catalogPrice = null;
+    if ($useCatalogPrice) {
+        if (!$knownProductId) {
+            return null;
+        }
+        $catalogPrice = catalog_price($pdo, $knownProductId);
+        if ($catalogPrice === null) {
+            return null;
+        }
+    }
 
     return [
         "id" => clean_text($item["id"] ?? "", 80) ?: bin2hex(random_bytes(8)),
-        "product_id" => known_product_id($pdo, $productId),
+        "product_id" => $knownProductId,
         "name" => $name,
         "price" => $catalogPrice ?? $price,
         "image" => clean_url($item["image"] ?? ""),
@@ -749,7 +787,14 @@ function known_product_id(PDO $pdo, string $productId): ?string
         return $cache[$productId];
     }
 
-    $stmt = $pdo->prepare("SELECT product_slug FROM products WHERE product_slug = :product_slug");
+    $stmt = $pdo->prepare(
+        "SELECT product_slug
+         FROM products
+         WHERE product_slug = :product_slug
+           AND active = true
+           AND approval_status = 'approved'
+           AND archived_at IS NULL"
+    );
     $stmt->execute(["product_slug" => $productId]);
     $cache[$productId] = $stmt->fetchColumn() ? $productId : null;
 
@@ -758,7 +803,14 @@ function known_product_id(PDO $pdo, string $productId): ?string
 
 function catalog_price(PDO $pdo, string $productId): ?float
 {
-    $stmt = $pdo->prepare("SELECT price FROM products WHERE product_slug = :product_slug AND active = true");
+    $stmt = $pdo->prepare(
+        "SELECT price
+         FROM products
+         WHERE product_slug = :product_slug
+           AND active = true
+           AND approval_status = 'approved'
+           AND archived_at IS NULL"
+    );
     $stmt->execute(["product_slug" => $productId]);
     $price = $stmt->fetchColumn();
     return $price === false ? null : (float) $price;
