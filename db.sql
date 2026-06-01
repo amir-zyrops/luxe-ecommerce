@@ -143,6 +143,18 @@ UPDATE products
 SET vendor_id = (SELECT id FROM retailer_accounts WHERE email = 'system@luxe.local')
 WHERE vendor_id IS NULL;
 
+UPDATE products
+SET active = true
+WHERE approval_status = 'approved'
+  AND archived_at IS NULL;
+
+UPDATE products
+SET is_new_arrival = true
+WHERE approval_status = 'approved'
+  AND archived_at IS NULL
+  AND vendor_id IS NOT NULL
+  AND vendor_id <> (SELECT id FROM retailer_accounts WHERE email = 'system@luxe.local');
+
 ALTER TABLE products ALTER COLUMN vendor_id DROP NOT NULL;
 
 DROP INDEX IF EXISTS idx_products_listing;
@@ -157,6 +169,22 @@ CREATE TRIGGER trg_products_updated_at
 BEFORE UPDATE ON products
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE IF NOT EXISTS retailer_messages (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  retailer_id BIGINT NOT NULL REFERENCES retailer_accounts(id) ON DELETE CASCADE,
+  sender_id BIGINT NOT NULL REFERENCES retailer_accounts(id) ON DELETE CASCADE,
+  sender_role TEXT NOT NULL CHECK (sender_role IN ('retailer', 'admin')),
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (length(trim(body)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_retailer_messages_retailer_created_at
+ON retailer_messages (retailer_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_retailer_messages_sender_created_at
+ON retailer_messages (sender_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS addresses (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

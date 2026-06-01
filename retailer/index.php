@@ -26,7 +26,7 @@ if (!$retailer && !in_array($view, $publicViews, true)) {
     $view = "login";
 }
 if ($retailer && in_array($view, $publicViews, true)) {
-    $view = "dashboard";
+    redirect_to_retailer("dashboard");
 }
 
 $flash = take_retailer_flash();
@@ -34,22 +34,43 @@ $isAdmin = ($retailer["role"] ?? "") === "admin";
 $editingProduct = null;
 $myProducts = [];
 $pendingProducts = [];
+$approvedProducts = [];
+$retailerDirectory = [];
+$retailerMessages = [];
+$adminMessageRetailers = [];
+$adminMessageThreads = [];
 $stats = $retailer ? retailer_stats($pdo, $retailer) : [];
+
+if ($retailer && !$isAdmin && $view === "products") {
+    $view = "dashboard";
+}
 
 if ($retailer && $view === "add" && isset($_GET["edit"])) {
     $editingProduct = fetch_owned_product($pdo, (int) $retailer["id"], retailer_slug($_GET["edit"]));
     if (!$editingProduct) {
         set_retailer_flash("error", "Product not found for this retailer account.");
-        redirect_to_retailer("products");
+        redirect_to_retailer("dashboard");
     }
 }
-if ($retailer && $view === "products") {
+if ($retailer && !$isAdmin && $view === "dashboard") {
     $myProducts = fetch_retailer_products($pdo, (int) $retailer["id"]);
 }
 if ($retailer && $isAdmin && $view === "admin") {
     $pendingProducts = fetch_pending_products($pdo);
 }
-
+if ($retailer && $isAdmin && $view === "approved") {
+    $approvedProducts = fetch_approved_products($pdo);
+}
+if ($retailer && $isAdmin && $view === "retailers") {
+    $retailerDirectory = fetch_retailer_directory($pdo);
+}
+if ($retailer && $isAdmin) {
+    $adminMessageRetailers = fetch_message_retailers($pdo);
+    $adminMessageThreads = fetch_admin_message_threads($pdo);
+}
+if ($retailer && !$isAdmin) {
+    $retailerMessages = fetch_retailer_messages($pdo, (int) $retailer["id"]);
+}
 $navLink = "font-label-lg text-label-lg text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors";
 ?>
 <!DOCTYPE html>
@@ -166,25 +187,21 @@ $navLink = "font-label-lg text-label-lg text-secondary dark:text-secondary-fixed
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
 </style>
-<link href="/assets/luxe-mark.svg" rel="icon" type="image/svg+xml"/>
+<link href="/assets/luxe-favicon.svg" rel="icon" type="image/svg+xml"/>
 <link href="/assets/css/site.css" rel="stylesheet"/>
 </head>
 <body class="bg-background text-on-background font-body-md selection:bg-primary-fixed selection:text-on-primary-fixed">
 <header class="sticky top-0 w-full z-50 bg-surface/80 dark:bg-surface/80 backdrop-blur-md border-b border-outline-variant/30 shadow-sm">
 <div class="flex justify-between items-center h-20 px-gutter max-w-container-max mx-auto">
-<a class="font-headline-md text-headline-md font-bold text-on-surface dark:text-inverse-on-surface tracking-tighter" href="/">LUXE</a>
+<a class="luxe-site-logo" href="/" aria-label="LUXE home">
+<img src="/assets/luxe-mark.svg" alt="" aria-hidden="true"/>
+<span>LUXE</span>
+</a>
 <nav class="hidden md:flex items-center gap-lg">
 <a class="<?= $navLink ?>" href="/">Storefront</a>
 <a class="<?= $navLink ?>" href="/collections.php">Collections</a>
 <?php if ($retailer): ?>
-<a class="<?= $navLink ?> <?= $view === "dashboard" ? "text-primary dark:text-inverse-primary" : "" ?>" href="index.php?view=dashboard">Dashboard</a>
-<?php if (!$isAdmin): ?>
-<a class="<?= $navLink ?> <?= $view === "products" ? "text-primary dark:text-inverse-primary" : "" ?>" href="index.php?view=products">My Products</a>
-<a class="<?= $navLink ?> <?= $view === "add" ? "text-primary dark:text-inverse-primary" : "" ?>" href="index.php?view=add">Add Product</a>
-<?php endif; ?>
-<?php if ($isAdmin): ?>
-<a class="<?= $navLink ?> <?= $view === "admin" ? "text-primary dark:text-inverse-primary" : "" ?>" href="index.php?view=admin">Admin Approval</a>
-<?php endif; ?>
+<a class="<?= $navLink ?> <?= in_array($view, ["dashboard", "admin", "approved", "retailers", "add"], true) ? "text-primary dark:text-inverse-primary" : "" ?>" href="index.php?view=dashboard">Dashboard</a>
 <?php else: ?>
 <a class="<?= $navLink ?> <?= in_array($view, ["login", "signup"], true) ? "text-primary dark:text-inverse-primary" : "" ?>" href="login.php">Become a Retailer</a>
 <?php endif; ?>
@@ -224,11 +241,11 @@ $navLink = "font-label-lg text-label-lg text-secondary dark:text-secondary-fixed
 <section class="grid grid-cols-1 lg:grid-cols-2 gap-lg items-start">
 <div>
 <span class="font-label-md text-label-md text-primary uppercase tracking-widest">Retailer Portal</span>
-<h1 class="font-headline-lg text-headline-lg text-on-surface mt-xs mb-sm">Retailer / Admin Login</h1>
-<p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl">Use a retailer account to manage products immediately. Products become public only after admin approval. Admins sign in here too.</p>
+<h1 class="font-headline-lg text-headline-lg text-on-surface mt-xs mb-sm">Retailer Login</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl">Use a retailer account to manage products immediately. Products become public only after approval.</p>
 </div>
 <section class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm">
-<h2 class="font-headline-md text-headline-md text-on-surface mb-md">Portal Login</h2>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-md">Retailer Login</h2>
 <form class="space-y-md" action="index.php?view=login" method="post">
 <input name="action" type="hidden" value="login"/>
 <div>
@@ -307,103 +324,51 @@ Add Product
 </div>
 <?php endforeach; ?>
 </div>
-<div class="grid grid-cols-1 md:grid-cols-<?= $isAdmin ? "1" : "2" ?> gap-md">
 <?php if ($isAdmin): ?>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-md">
 <a class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm hover:border-primary transition-colors" href="index.php?view=admin">
 <span class="material-symbols-outlined text-primary">fact_check</span>
 <h2 class="font-headline-md text-headline-md mt-sm text-on-surface">Admin Approval</h2>
 <p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Review pending product submissions before they appear publicly.</p>
 </a>
-<?php else: ?>
-<a class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm hover:border-primary transition-colors" href="index.php?view=products">
-<span class="material-symbols-outlined text-primary">inventory_2</span>
-<h2 class="font-headline-md text-headline-md mt-sm text-on-surface">My Products</h2>
-<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Edit, resubmit, or archive products owned by this retailer account.</p>
+<a class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm hover:border-primary transition-colors" href="index.php?view=approved">
+<span class="material-symbols-outlined text-primary">inventory</span>
+<h2 class="font-headline-md text-headline-md mt-sm text-on-surface">Approved Products</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Open live product pages or remove approved listings.</p>
 </a>
-<a class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm hover:border-primary transition-colors" href="index.php?view=add">
-<span class="material-symbols-outlined text-primary">add_box</span>
-<h2 class="font-headline-md text-headline-md mt-sm text-on-surface">Add Product</h2>
-<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">New retailer products are saved as pending until admin approval.</p>
+<a class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm hover:border-primary transition-colors" href="index.php?view=retailers">
+<span class="material-symbols-outlined text-primary">store</span>
+<h2 class="font-headline-md text-headline-md mt-sm text-on-surface">Retailers</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">View retailer account details and product counts.</p>
 </a>
-<?php endif; ?>
 </div>
+<?php render_admin_message_panel($adminMessageRetailers, $adminMessageThreads); ?>
+<?php else: ?>
+<section class="space-y-md">
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Products</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Edit, resubmit, or delete products owned by this retailer account.</p>
+</div>
+<?php render_retailer_product_table($myProducts); ?>
 </section>
-<?php elseif ($view === "products" && $retailer && !$isAdmin): ?>
+<?php render_retailer_message_panel($retailerMessages); ?>
+<?php endif; ?>
+</section>
+<?php elseif ($view === "approved" && $retailer && $isAdmin): ?>
 <section class="space-y-lg">
-<div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-md">
 <div>
-<h1 class="font-headline-lg text-headline-lg text-on-surface">My Products</h1>
-<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Only products owned by <?= e($retailer["display_name"]) ?> are shown here.</p>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Approved Products</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Approved products that can appear on the public storefront.</p>
 </div>
-<a class="inline-flex items-center justify-center gap-sm bg-primary text-on-primary px-md py-sm rounded-lg font-label-lg text-label-lg hover:opacity-90 active:scale-95 transition-all" href="index.php?view=add">
-<span class="material-symbols-outlined">add</span>
-Add Product
-</a>
-</div>
-<?php if (!$myProducts): ?>
-<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-lg text-center">
-<p class="font-body-md text-body-md text-on-surface-variant">No products submitted yet.</p>
-</div>
-<?php else: ?>
-<div class="overflow-x-auto bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm">
-<table class="w-full text-left">
-<thead class="border-b border-outline-variant/30">
-<tr>
-<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Product</th>
-<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Category</th>
-<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Price</th>
-<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Stock</th>
-<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Approval</th>
-<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Visibility</th>
-<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Updated</th>
-<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Actions</th>
-</tr>
-</thead>
-<tbody>
-<?php foreach ($myProducts as $product): ?>
-<tr class="border-b border-outline-variant/20 last:border-0">
-<td class="p-md">
-<div class="flex items-center gap-sm min-w-64">
-<div class="w-12 h-16 bg-surface-container rounded overflow-hidden flex-shrink-0">
-<?php if ($product["image_url"]): ?>
-<img class="w-full h-full object-cover" alt="" src="<?= e($product["image_url"]) ?>"/>
-<?php endif; ?>
-</div>
+<?php render_admin_product_table($approvedProducts, "approved"); ?>
+</section>
+<?php elseif ($view === "retailers" && $retailer && $isAdmin): ?>
+<section class="space-y-lg">
 <div>
-<p class="font-label-lg text-label-lg text-on-surface"><?= e($product["name"]) ?></p>
-<p class="font-body-sm text-body-sm text-on-surface-variant"><?= e($product["description"]) ?></p>
-<?php if ($product["rejection_reason"]): ?>
-<p class="font-body-sm text-body-sm text-on-error-container"><?= e($product["rejection_reason"]) ?></p>
-<?php endif; ?>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Retailers</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Retailer account details and product totals.</p>
 </div>
-</div>
-</td>
-<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e($product["category"]) ?></td>
-<td class="p-md font-label-md text-label-md text-primary">$<?= e(number_format((float) $product["price"], 2)) ?></td>
-<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e((string) $product["stock_quantity"]) ?></td>
-<td class="p-md"><span class="<?= status_badge_class($product["approval_status"]) ?>"><?= e(ucfirst((string) $product["approval_status"])) ?></span></td>
-<td class="p-md"><span class="<?= visibility_badge_class((bool) $product["active"]) ?>"><?= ((bool) $product["active"]) ? "Active" : "Inactive" ?></span></td>
-<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e(date("M j, Y", strtotime((string) $product["updated_at"]))) ?></td>
-<td class="p-md">
-<div class="flex gap-sm">
-<a class="inline-flex items-center justify-center p-base text-primary hover:bg-primary-fixed rounded-lg" href="index.php?view=add&amp;edit=<?= e($product["product_slug"]) ?>" aria-label="Edit <?= e($product["name"]) ?>">
-<span class="material-symbols-outlined">edit</span>
-</a>
-<form action="index.php" method="post">
-<input name="action" type="hidden" value="archive_product"/>
-<input name="product_slug" type="hidden" value="<?= e($product["product_slug"]) ?>"/>
-<button class="inline-flex items-center justify-center p-base text-on-error-container hover:bg-error-container rounded-lg" type="submit" aria-label="Archive <?= e($product["name"]) ?>">
-<span class="material-symbols-outlined">delete</span>
-</button>
-</form>
-</div>
-</td>
-</tr>
-<?php endforeach; ?>
-</tbody>
-</table>
-</div>
-<?php endif; ?>
+<?php render_retailer_directory($retailerDirectory); ?>
 </section>
 <?php elseif ($view === "add" && $retailer && !$isAdmin): ?>
 <?php
@@ -430,7 +395,7 @@ $sizeValue = implode(", ", array_values((array) $formProduct["available_sizes"])
 <h1 class="font-headline-lg text-headline-lg text-on-surface"><?= $isEdit ? "Edit Product" : "Add Product" ?></h1>
 <p class="font-body-md text-body-md text-on-surface-variant mt-xs"><?= $isEdit ? "You can manage this product now; edited products return to pending review before public listing." : "You can add products now; customers see them only after admin approval." ?></p>
 </div>
-<form class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm space-y-md" action="index.php" method="post">
+<form class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm space-y-md" action="index.php" method="post" enctype="multipart/form-data">
 <input name="action" type="hidden" value="save_product"/>
 <?php if ($isEdit): ?>
 <input name="product_slug" type="hidden" value="<?= e($formProduct["product_slug"]) ?>"/>
@@ -479,9 +444,12 @@ $sizeValue = implode(", ", array_values((array) $formProduct["available_sizes"])
 <option value="0" <?= !((bool) $formProduct["active"]) ? "selected" : "" ?>>Inactive</option>
 </select>
 </div>
-<div>
-<label class="block font-label-md text-label-md mb-xs text-on-surface" for="product-image">Image URL</label>
-<input class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none" id="product-image" name="image_url" required type="url" value="<?= e($formProduct["image_url"]) ?>"/>
+<div class="space-y-sm">
+<label class="block font-label-md text-label-md text-on-surface" for="product-image">Image URL</label>
+<input class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none" id="product-image" name="image_url" type="url" value="<?= e($formProduct["image_url"]) ?>" placeholder="https://example.com/product.jpg"/>
+<label class="block font-label-md text-label-md text-on-surface" for="product-image-file">Upload Image</label>
+<input class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none bg-surface-container-lowest" id="product-image-file" name="product_image" type="file" accept="image/jpeg,image/png,image/webp,image/gif"/>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Paste an image URL or upload a JPG, PNG, WebP, or GIF file up to 5 MB.</p>
 </div>
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
@@ -496,7 +464,7 @@ $sizeValue = implode(", ", array_values((array) $formProduct["available_sizes"])
 </div>
 <div class="flex flex-col sm:flex-row gap-sm">
 <button class="bg-primary text-on-primary px-md py-sm rounded-lg font-label-lg text-label-lg hover:opacity-90 active:scale-95 transition-all" type="submit"><?= $isEdit ? "Resubmit Product" : "Submit Product" ?></button>
-<a class="border border-on-surface text-on-surface px-md py-sm rounded-lg font-label-lg text-label-lg hover:bg-surface-container-high transition-all text-center" href="index.php?view=products">Cancel</a>
+<a class="border border-on-surface text-on-surface px-md py-sm rounded-lg font-label-lg text-label-lg hover:bg-surface-container-high transition-all text-center" href="index.php?view=dashboard">Cancel</a>
 </div>
 </form>
 </section>
@@ -539,6 +507,15 @@ $sizeValue = implode(", ", array_values((array) $formProduct["available_sizes"])
 Approve
 </button>
 </form>
+<form action="index.php" method="post">
+<input name="action" type="hidden" value="admin_delete_product"/>
+<input name="return_view" type="hidden" value="admin"/>
+<input name="product_slug" type="hidden" value="<?= e($product["product_slug"]) ?>"/>
+<button class="inline-flex items-center justify-center gap-sm border border-on-error-container text-on-error-container px-md py-sm rounded-lg font-label-lg text-label-lg hover:bg-error-container active:scale-95 transition-all" type="submit">
+<span class="material-symbols-outlined">delete</span>
+Delete
+</button>
+</form>
 <form class="flex flex-col sm:flex-row gap-sm flex-1" action="index.php" method="post">
 <input name="action" type="hidden" value="admin_reject"/>
 <input name="product_slug" type="hidden" value="<?= e($product["product_slug"]) ?>"/>
@@ -569,6 +546,286 @@ Reject
 </html>
 <?php
 
+function render_retailer_product_table(array $products): void
+{
+    if (!$products): ?>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-lg text-center">
+<p class="font-body-md text-body-md text-on-surface-variant">No products submitted yet.</p>
+</div>
+<?php
+        return;
+    endif;
+?>
+<div class="overflow-x-auto bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm">
+<table class="w-full text-left">
+<thead class="border-b border-outline-variant/30">
+<tr>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Product</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Category</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Price</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Stock</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Approval</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Visibility</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Updated</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Actions</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($products as $product): ?>
+<tr class="border-b border-outline-variant/20 last:border-0">
+<td class="p-md">
+<div class="flex items-center gap-sm min-w-64">
+<div class="w-12 h-16 bg-surface-container rounded overflow-hidden flex-shrink-0">
+<?php if ($product["image_url"]): ?>
+<img class="w-full h-full object-cover" alt="" src="<?= e($product["image_url"]) ?>"/>
+<?php endif; ?>
+</div>
+<div>
+<p class="font-label-lg text-label-lg text-on-surface"><?= e($product["name"]) ?></p>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><?= e($product["description"]) ?></p>
+<?php if ($product["rejection_reason"]): ?>
+<p class="font-body-sm text-body-sm text-on-error-container"><?= e($product["rejection_reason"]) ?></p>
+<?php endif; ?>
+</div>
+</div>
+</td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e(category_label((string) $product["category"])) ?></td>
+<td class="p-md font-label-md text-label-md text-primary">$<?= e(number_format((float) $product["price"], 2)) ?></td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e((string) $product["stock_quantity"]) ?></td>
+<td class="p-md"><span class="<?= status_badge_class((string) $product["approval_status"]) ?>"><?= e(ucfirst((string) $product["approval_status"])) ?></span></td>
+<td class="p-md"><span class="<?= visibility_badge_class((bool) $product["active"]) ?>"><?= ((bool) $product["active"]) ? "Active" : "Inactive" ?></span></td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e(date("M j, Y", strtotime((string) $product["updated_at"]))) ?></td>
+<td class="p-md">
+<div class="flex gap-sm">
+<a class="inline-flex items-center justify-center p-base text-primary hover:bg-primary-fixed rounded-lg" href="index.php?view=add&amp;edit=<?= e($product["product_slug"]) ?>" aria-label="Edit <?= e($product["name"]) ?>">
+<span class="material-symbols-outlined">edit</span>
+</a>
+<form action="index.php" method="post" onsubmit="return confirm('Delete this product? This will remove it from your dashboard and the public storefront.');">
+<input name="action" type="hidden" value="delete_product"/>
+<input name="product_slug" type="hidden" value="<?= e($product["product_slug"]) ?>"/>
+<button class="inline-flex items-center justify-center p-base text-on-error-container hover:bg-error-container rounded-lg" type="submit" aria-label="Delete <?= e($product["name"]) ?>">
+<span class="material-symbols-outlined">delete</span>
+</button>
+</form>
+</div>
+</td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+<?php
+}
+
+function render_admin_product_table(array $products, string $returnView): void
+{
+    if (!$products): ?>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-lg text-center">
+<p class="font-body-md text-body-md text-on-surface-variant">No approved products found.</p>
+</div>
+<?php
+        return;
+    endif;
+?>
+<div class="overflow-x-auto bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm">
+<table class="w-full text-left">
+<thead class="border-b border-outline-variant/30">
+<tr>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Product</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Retailer</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Category</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Price</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Visibility</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Updated</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Actions</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($products as $product): ?>
+<tr class="border-b border-outline-variant/20 last:border-0">
+<td class="p-md">
+<a class="flex items-center gap-sm min-w-64 hover:text-primary transition-colors" href="/product.php?product=<?= e($product["product_slug"]) ?>">
+<span class="w-12 h-16 bg-surface-container rounded overflow-hidden flex-shrink-0">
+<?php if ($product["image_url"]): ?>
+<img class="w-full h-full object-cover" alt="" src="<?= e($product["image_url"]) ?>"/>
+<?php endif; ?>
+</span>
+<span>
+<span class="block font-label-lg text-label-lg text-on-surface"><?= e($product["name"]) ?></span>
+<span class="block font-body-sm text-body-sm text-on-surface-variant"><?= e($product["description"]) ?></span>
+</span>
+</a>
+</td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e($product["business_name"] ?: $product["display_name"]) ?></td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e(category_label((string) $product["category"])) ?></td>
+<td class="p-md font-label-md text-label-md text-primary">$<?= e(number_format((float) $product["price"], 2)) ?></td>
+<td class="p-md"><span class="<?= visibility_badge_class((bool) $product["active"]) ?>"><?= ((bool) $product["active"]) ? "Active" : "Inactive" ?></span></td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e(date("M j, Y", strtotime((string) $product["updated_at"]))) ?></td>
+<td class="p-md">
+<form action="index.php" method="post">
+<input name="action" type="hidden" value="admin_delete_product"/>
+<input name="return_view" type="hidden" value="<?= e($returnView) ?>"/>
+<input name="product_slug" type="hidden" value="<?= e($product["product_slug"]) ?>"/>
+<button class="inline-flex items-center justify-center p-base text-on-error-container hover:bg-error-container rounded-lg" type="submit" aria-label="Delete <?= e($product["name"]) ?>">
+<span class="material-symbols-outlined">delete</span>
+</button>
+</form>
+</td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+<?php
+}
+
+function render_retailer_directory(array $retailers): void
+{
+    if (!$retailers): ?>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-lg text-center">
+<p class="font-body-md text-body-md text-on-surface-variant">No retailer accounts found.</p>
+</div>
+<?php
+        return;
+    endif;
+?>
+<div class="overflow-x-auto bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm">
+<table class="w-full text-left">
+<thead class="border-b border-outline-variant/30">
+<tr>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Retailer</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Email</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Status</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Products</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Pending</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Approved</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Rejected</th>
+<th class="p-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Joined</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($retailers as $retailer): ?>
+<tr class="border-b border-outline-variant/20 last:border-0">
+<td class="p-md">
+<p class="font-label-lg text-label-lg text-on-surface"><?= e($retailer["business_name"] ?: $retailer["display_name"]) ?></p>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><?= e($retailer["display_name"]) ?></p>
+</td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e($retailer["email"]) ?></td>
+<td class="p-md"><span class="<?= visibility_badge_class($retailer["status"] === "active") ?>"><?= e(ucfirst((string) $retailer["status"])) ?></span></td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e((string) $retailer["product_count"]) ?></td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e((string) $retailer["pending_count"]) ?></td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e((string) $retailer["approved_count"]) ?></td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e((string) $retailer["rejected_count"]) ?></td>
+<td class="p-md font-body-sm text-body-sm text-on-surface-variant"><?= e(date("M j, Y", strtotime((string) $retailer["created_at"]))) ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+<?php
+}
+
+function render_retailer_message_panel(array $messages): void
+{
+?>
+<section class="space-y-md">
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Messages</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Send product or approval questions to the admin team.</p>
+</div>
+<form class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm space-y-sm" action="index.php" method="post">
+<input name="action" type="hidden" value="send_message"/>
+<label class="block font-label-md text-label-md text-on-surface" for="retailer-message">Message</label>
+<textarea class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none min-h-24" id="retailer-message" maxlength="1000" name="message" required></textarea>
+<button class="inline-flex items-center justify-center gap-sm bg-primary text-on-primary px-md py-sm rounded-lg font-label-lg text-label-lg hover:opacity-90 active:scale-95 transition-all" type="submit">
+<span class="material-symbols-outlined">send</span>
+Send Message
+</button>
+</form>
+<?php render_message_list($messages); ?>
+</section>
+<?php
+}
+
+function render_admin_message_panel(array $retailers, array $threads): void
+{
+?>
+<section class="space-y-md">
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Retailer Messages</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Reply to retailer questions without leaving the portal.</p>
+</div>
+<?php if ($retailers): ?>
+<form class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm space-y-sm" action="index.php" method="post">
+<input name="action" type="hidden" value="send_message"/>
+<div class="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-sm">
+<div>
+<label class="block font-label-md text-label-md mb-xs text-on-surface" for="admin-message-retailer">Retailer</label>
+<select class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none" id="admin-message-retailer" name="retailer_id" required>
+<?php foreach ($retailers as $retailer): ?>
+<option value="<?= e((string) $retailer["id"]) ?>"><?= e($retailer["business_name"] ?: $retailer["display_name"]) ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-xs text-on-surface" for="admin-message">Message</label>
+<textarea class="w-full px-md py-sm border border-outline-variant rounded-lg focus:border-primary focus:ring-0 outline-none min-h-24" id="admin-message" maxlength="1000" name="message" required></textarea>
+</div>
+</div>
+<button class="inline-flex items-center justify-center gap-sm bg-primary text-on-primary px-md py-sm rounded-lg font-label-lg text-label-lg hover:opacity-90 active:scale-95 transition-all" type="submit">
+<span class="material-symbols-outlined">send</span>
+Send Reply
+</button>
+</form>
+<?php endif; ?>
+<?php if (!$threads): ?>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-lg text-center">
+<p class="font-body-md text-body-md text-on-surface-variant">No retailer messages yet.</p>
+</div>
+<?php else: ?>
+<div class="space-y-md">
+<?php foreach ($threads as $thread): ?>
+<article class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-md shadow-sm">
+<div class="flex flex-col md:flex-row md:items-start md:justify-between gap-sm mb-md">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface"><?= e($thread["business_name"] ?: $thread["display_name"]) ?></h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><?= e($thread["email"]) ?></p>
+</div>
+<span class="font-label-md text-label-md text-primary"><?= e((string) count($thread["messages"])) ?> messages</span>
+</div>
+<?php render_message_list($thread["messages"], false); ?>
+</article>
+<?php endforeach; ?>
+</div>
+<?php endif; ?>
+</section>
+<?php
+}
+
+function render_message_list(array $messages, bool $framed = true): void
+{
+    if (!$messages): ?>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-lg text-center">
+<p class="font-body-md text-body-md text-on-surface-variant">No messages yet.</p>
+</div>
+<?php
+        return;
+    endif;
+?>
+<div class="<?= $framed ? "bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm " : "border-t border-outline-variant/30 " ?>divide-y divide-outline-variant/30">
+<?php foreach ($messages as $message): ?>
+<div class="p-md">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-xs">
+<p class="font-label-lg text-label-lg text-on-surface"><?= e($message["sender_role"] === "admin" ? "Admin" : ($message["sender_name"] ?: "Retailer")) ?></p>
+<time class="font-body-sm text-body-sm text-on-surface-variant" datetime="<?= e((string) $message["created_at"]) ?>"><?= e(date("M j, Y g:i A", strtotime((string) $message["created_at"]))) ?></time>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs"><?= e($message["body"]) ?></p>
+</div>
+<?php endforeach; ?>
+</div>
+<?php
+}
+
 function handle_retailer_post(PDO $pdo): void
 {
     $action = (string) ($_POST["action"] ?? "");
@@ -589,14 +846,20 @@ function handle_retailer_post(PDO $pdo): void
         case "save_product":
             handle_retailer_save_product($pdo);
             break;
-        case "archive_product":
-            handle_retailer_archive_product($pdo);
+        case "delete_product":
+            handle_retailer_delete_product($pdo);
+            break;
+        case "send_message":
+            handle_retailer_message($pdo);
             break;
         case "admin_approve":
             handle_admin_approval($pdo, true);
             break;
         case "admin_reject":
             handle_admin_approval($pdo, false);
+            break;
+        case "admin_delete_product":
+            handle_admin_delete_product($pdo);
             break;
         default:
             throw new DomainException("Unknown retailer action.");
@@ -657,8 +920,8 @@ function handle_retailer_login(PDO $pdo): void
     if ($adminId) {
         $_SESSION["luxe_retailer_id"] = $adminId;
         session_regenerate_id(true);
-        set_retailer_flash("success", "Admin signed in.");
-        redirect_to_retailer("admin");
+        set_retailer_flash("success", "Signed in to the retailer portal.");
+        redirect_to_retailer("dashboard");
     }
 
     $stmt = $pdo->prepare(
@@ -679,7 +942,7 @@ function handle_retailer_login(PDO $pdo): void
     $_SESSION["luxe_retailer_id"] = (int) $account["id"];
     session_regenerate_id(true);
     set_retailer_flash("success", "Signed in to the retailer portal.");
-    redirect_to_retailer($account["role"] === "admin" ? "admin" : "dashboard");
+    redirect_to_retailer("dashboard");
 }
 
 function try_env_admin_login(PDO $pdo, string $email, string $password): ?int
@@ -736,6 +999,7 @@ function handle_retailer_save_product(PDO $pdo): void
                  available_sizes = CAST(:available_sizes AS jsonb),
                  approval_status = 'pending',
                  rejection_reason = '',
+                 is_new_arrival = true,
                  active = :active,
                  archived_at = NULL
              WHERE product_slug = :product_slug
@@ -751,7 +1015,7 @@ function handle_retailer_save_product(PDO $pdo): void
         }
 
         set_retailer_flash("success", "Product resubmitted for admin approval.");
-        redirect_to_retailer("products");
+        redirect_to_retailer("dashboard");
     }
 
     $productSlug = unique_product_slug($pdo, retailer_slug($product["name"]), $vendorId);
@@ -763,7 +1027,7 @@ function handle_retailer_save_product(PDO $pdo): void
          VALUES
          (:product_slug, :name, :description, :category, :segment, :price, :stock_quantity, :image_url, :default_color,
           CAST(:available_colors AS jsonb), CAST(:available_sizes AS jsonb), :vendor_id,
-          'pending', '', NULL, false, 0, :active)"
+          'pending', '', NULL, true, 0, :active)"
     );
     $stmt->execute($product + [
         "product_slug" => $productSlug,
@@ -771,14 +1035,14 @@ function handle_retailer_save_product(PDO $pdo): void
     ]);
 
     set_retailer_flash("success", "Product submitted for admin approval.");
-    redirect_to_retailer("products");
+    redirect_to_retailer("dashboard");
 }
 
-function handle_retailer_archive_product(PDO $pdo): void
+function handle_retailer_delete_product(PDO $pdo): void
 {
     $account = require_retailer_account($pdo);
     if ($account["role"] !== "retailer") {
-        throw new DomainException("Only retailer accounts can archive products.");
+        throw new DomainException("Only retailer accounts can delete products.");
     }
 
     $slug = retailer_slug($_POST["product_slug"] ?? "");
@@ -786,7 +1050,7 @@ function handle_retailer_archive_product(PDO $pdo): void
         throw new DomainException("Invalid product.");
     }
 
-    // Ownership is checked in the WHERE clause so retailers cannot archive another seller's product.
+    // Ownership is checked in the WHERE clause so retailers cannot delete another seller's product.
     $stmt = $pdo->prepare(
         "UPDATE products
          SET active = false,
@@ -803,8 +1067,44 @@ function handle_retailer_archive_product(PDO $pdo): void
         throw new DomainException("Product not found for this retailer account.");
     }
 
-    set_retailer_flash("success", "Product archived.");
-    redirect_to_retailer("products");
+    set_retailer_flash("success", "Product deleted.");
+    redirect_to_retailer("dashboard");
+}
+
+function handle_retailer_message(PDO $pdo): void
+{
+    $account = require_retailer_account($pdo);
+    if (!in_array($account["role"], ["retailer", "admin"], true)) {
+        throw new DomainException("Retailer portal access is required.");
+    }
+
+    $body = retailer_text($_POST["message"] ?? "", 1000);
+    if ($body === "") {
+        throw new DomainException("Enter a message.");
+    }
+
+    if ($account["role"] === "admin") {
+        $retailerId = retailer_int($_POST["retailer_id"] ?? 0, 1, 2147483647);
+        if (!retailer_can_receive_admin_message($pdo, $retailerId)) {
+            throw new DomainException("Choose a valid retailer.");
+        }
+    } else {
+        $retailerId = (int) $account["id"];
+    }
+
+    $stmt = $pdo->prepare(
+        "INSERT INTO retailer_messages (retailer_id, sender_id, sender_role, body)
+         VALUES (:retailer_id, :sender_id, :sender_role, :body)"
+    );
+    $stmt->execute([
+        "retailer_id" => $retailerId,
+        "sender_id" => (int) $account["id"],
+        "sender_role" => $account["role"],
+        "body" => $body,
+    ]);
+
+    set_retailer_flash("success", "Message sent.");
+    redirect_to_retailer("dashboard");
 }
 
 function handle_admin_approval(PDO $pdo, bool $approved): void
@@ -824,6 +1124,8 @@ function handle_admin_approval(PDO $pdo, bool $approved): void
             "UPDATE products
              SET approval_status = 'approved',
                  rejection_reason = '',
+                 active = true,
+                 is_new_arrival = true,
                  archived_at = NULL
              WHERE product_slug = :product_slug
                AND approval_status = 'pending'
@@ -855,6 +1157,34 @@ function handle_admin_approval(PDO $pdo, bool $approved): void
     redirect_to_retailer("admin");
 }
 
+function handle_admin_delete_product(PDO $pdo): void
+{
+    $account = require_retailer_account($pdo);
+    if ($account["role"] !== "admin") {
+        throw new DomainException("Admin access is required.");
+    }
+
+    $slug = retailer_slug($_POST["product_slug"] ?? "");
+    if (!$slug) {
+        throw new DomainException("Invalid product.");
+    }
+
+    $stmt = $pdo->prepare(
+        "UPDATE products
+         SET active = false,
+             archived_at = now()
+         WHERE product_slug = :product_slug
+           AND archived_at IS NULL"
+    );
+    $stmt->execute(["product_slug" => $slug]);
+    if ($stmt->rowCount() === 0) {
+        throw new DomainException("Product not found.");
+    }
+
+    set_retailer_flash("success", "Product deleted.");
+    redirect_to_retailer(admin_return_view($_POST["return_view"] ?? "dashboard"));
+}
+
 function sanitize_retailer_product_input(): array
 {
     $name = retailer_text($_POST["name"] ?? "", 180);
@@ -863,7 +1193,7 @@ function sanitize_retailer_product_input(): array
     $segment = retailer_slug($_POST["segment"] ?? "");
     $price = retailer_money($_POST["price"] ?? 0);
     $stockQuantity = retailer_int($_POST["stock_quantity"] ?? 0, 0, 100000);
-    $imageUrl = retailer_url($_POST["image_url"] ?? "");
+    $imageUrl = retailer_product_image_url();
     $colors = retailer_csv($_POST["available_colors"] ?? "");
     $sizes = retailer_csv($_POST["available_sizes"] ?? "");
     $active = (string) ($_POST["active"] ?? "1") === "1";
@@ -875,7 +1205,7 @@ function sanitize_retailer_product_input(): array
         throw new DomainException("Enter a valid product price.");
     }
     if (!$imageUrl) {
-        throw new DomainException("Enter a valid product image URL.");
+        throw new DomainException("Enter a valid product image URL or upload a product image.");
     }
     if (!$colors || !$sizes) {
         throw new DomainException("Enter at least one color and one size.");
@@ -1014,6 +1344,118 @@ function fetch_pending_products(PDO $pdo): array
     return $stmt->fetchAll();
 }
 
+function fetch_approved_products(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        "SELECT p.product_slug, p.name, p.description, p.category, p.segment, p.price, p.stock_quantity, p.image_url,
+                p.active, p.updated_at, r.display_name, r.business_name
+         FROM products p
+         JOIN retailer_accounts r ON r.id = p.vendor_id
+         WHERE p.approval_status = 'approved'
+           AND p.archived_at IS NULL
+         ORDER BY p.updated_at DESC"
+    );
+    return $stmt->fetchAll();
+}
+
+function fetch_retailer_directory(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        "SELECT r.id, r.email, r.display_name, r.business_name, r.status, r.created_at,
+                count(p.product_slug) FILTER (WHERE p.archived_at IS NULL) AS product_count,
+                count(p.product_slug) FILTER (WHERE p.approval_status = 'pending' AND p.archived_at IS NULL) AS pending_count,
+                count(p.product_slug) FILTER (WHERE p.approval_status = 'approved' AND p.archived_at IS NULL) AS approved_count,
+                count(p.product_slug) FILTER (WHERE p.approval_status = 'rejected' AND p.archived_at IS NULL) AS rejected_count
+         FROM retailer_accounts r
+         LEFT JOIN products p ON p.vendor_id = r.id
+         WHERE r.role = 'retailer'
+         GROUP BY r.id, r.email, r.display_name, r.business_name, r.status, r.created_at
+         ORDER BY r.created_at DESC"
+    );
+    return $stmt->fetchAll();
+}
+
+function fetch_retailer_messages(PDO $pdo, int $retailerId): array
+{
+    $stmt = $pdo->prepare(
+        "SELECT m.body, m.sender_role, m.created_at, a.display_name AS sender_name
+         FROM retailer_messages m
+         JOIN retailer_accounts a ON a.id = m.sender_id
+         WHERE m.retailer_id = :retailer_id
+         ORDER BY m.created_at DESC
+         LIMIT 20"
+    );
+    $stmt->execute(["retailer_id" => $retailerId]);
+    return array_reverse($stmt->fetchAll());
+}
+
+function fetch_message_retailers(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        "SELECT id, email, display_name, business_name
+         FROM retailer_accounts
+         WHERE role = 'retailer'
+           AND status = 'active'
+         ORDER BY business_name ASC, display_name ASC"
+    );
+    return $stmt->fetchAll();
+}
+
+function fetch_admin_message_threads(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        "SELECT m.retailer_id, m.body, m.sender_role, m.created_at, sender.display_name AS sender_name,
+                r.email, r.display_name, r.business_name
+         FROM retailer_messages m
+         JOIN retailer_accounts sender ON sender.id = m.sender_id
+         JOIN retailer_accounts r ON r.id = m.retailer_id
+         WHERE r.role = 'retailer'
+           AND r.status = 'active'
+         ORDER BY m.created_at DESC
+         LIMIT 80"
+    );
+
+    $threads = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $retailerId = (int) $row["retailer_id"];
+        if (!isset($threads[$retailerId])) {
+            $threads[$retailerId] = [
+                "email" => $row["email"],
+                "display_name" => $row["display_name"],
+                "business_name" => $row["business_name"],
+                "messages" => [],
+            ];
+        }
+
+        $threads[$retailerId]["messages"][] = [
+            "body" => $row["body"],
+            "sender_role" => $row["sender_role"],
+            "sender_name" => $row["sender_name"],
+            "created_at" => $row["created_at"],
+        ];
+    }
+
+    foreach ($threads as &$thread) {
+        $thread["messages"] = array_reverse(array_slice($thread["messages"], 0, 8));
+    }
+    unset($thread);
+
+    return array_values($threads);
+}
+
+function retailer_can_receive_admin_message(PDO $pdo, int $retailerId): bool
+{
+    $stmt = $pdo->prepare(
+        "SELECT 1
+         FROM retailer_accounts
+         WHERE id = :id
+           AND role = 'retailer'
+           AND status = 'active'"
+    );
+    $stmt->execute(["id" => $retailerId]);
+    return (bool) $stmt->fetchColumn();
+}
+
 function retailer_product_row(array $row): array
 {
     $row["available_colors"] = json_decode((string) $row["available_colors"], true) ?: [];
@@ -1096,10 +1538,73 @@ function retailer_slug(mixed $value): string
     return trim(preg_replace("/[^a-z0-9-]+/", "-", strtolower((string) $value)), "-");
 }
 
+function admin_return_view(mixed $value): string
+{
+    $view = retailer_slug($value);
+    return in_array($view, ["dashboard", "admin", "approved", "retailers"], true) ? $view : "dashboard";
+}
+
 function retailer_url(mixed $value): string
 {
     $url = trim((string) $value);
     return filter_var($url, FILTER_VALIDATE_URL) ? substr($url, 0, 1200) : "";
+}
+
+function retailer_product_image_url(): string
+{
+    $uploaded = retailer_uploaded_product_image($_FILES["product_image"] ?? null);
+    if ($uploaded !== "") {
+        return $uploaded;
+    }
+
+    return retailer_url($_POST["image_url"] ?? "");
+}
+
+function retailer_uploaded_product_image(mixed $file): string
+{
+    if (!is_array($file) || ($file["error"] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return "";
+    }
+    if (($file["error"] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        throw new DomainException("Product image upload failed.");
+    }
+    if ((int) ($file["size"] ?? 0) > 5 * 1024 * 1024) {
+        throw new DomainException("Product image must be 5 MB or smaller.");
+    }
+
+    $tmpName = (string) ($file["tmp_name"] ?? "");
+    if ($tmpName === "" || !is_uploaded_file($tmpName)) {
+        throw new DomainException("Product image upload is invalid.");
+    }
+
+    $info = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = $info ? (string) finfo_file($info, $tmpName) : "";
+    if ($info) {
+        finfo_close($info);
+    }
+
+    $extensions = [
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+    ];
+    if (!isset($extensions[$mime])) {
+        throw new DomainException("Product image must be a JPG, PNG, WebP, or GIF file.");
+    }
+
+    $uploadDir = dirname(__DIR__) . "/assets/uploads/products";
+    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
+        throw new DomainException("Product image upload directory is not writable.");
+    }
+
+    $filename = bin2hex(random_bytes(16)) . "." . $extensions[$mime];
+    $target = $uploadDir . "/" . $filename;
+    if (!move_uploaded_file($tmpName, $target)) {
+        throw new DomainException("Could not save the uploaded product image.");
+    }
+
+    return "/assets/uploads/products/" . $filename;
 }
 
 function retailer_money(mixed $value): float
