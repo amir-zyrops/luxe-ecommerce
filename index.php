@@ -223,7 +223,7 @@
 <div class="max-w-container-max mx-auto px-gutter">
 <div class="flex gap-md overflow-x-auto hide-scrollbar pb-base" data-carousel-track="">
 <!-- Product Card 1 -->
-<div class="min-w-[300px] bg-surface-container-lowest rounded-lg overflow-hidden group shadow-sm hover:shadow-md transition-shadow" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuBchUcD0EUx2j2iuPQpWTJiIV8_zw6fVXkrrcoW0NNOHi1SxdQu66MH8cT3G92PJljVOKIKgAIxyBfrzWWenQqSPhvb1LWVR7mApfsOtw2uz6Y0KuD0iE38tFoufpB9nbsctHFEUVTIfLvBiOPst0XZ0luxheHlGNr5fdlKJaBuMALpmJsNioBdRUkPlV9y0lbkOIJe3LmZLgRYbVi9X9cNiyeudwa6R7G7FYt8ukQkzQCN-Lq6ASZTwC8kocRV1qzT1TLfE4Ck0ws" data-cart-name="Wool Tailored Coat" data-cart-price="495">
+<div class="min-w-[300px] bg-surface-container-lowest rounded-lg overflow-hidden group shadow-sm hover:shadow-md transition-shadow" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuBchUcD0EUx2j2iuPQpWTJiIV8_zw6fVXkrrcoW0NNOHi1SxdQu66MH8cT3G92PJljVOKIKgAIxyBfrzWWenQqSPhvb1LWVR7mApfsOtw2uz6Y0KuD0iE38tFoufpB9nbsctHFEUVTIfLvBiOPst0XZ0luxheHlGNr5fdlKJaBuMALpmJsNioBdRUkPlV9y0lbkOIJe3LmZLgRYbVi9X9cNiyeudwa6R7G7FYt8ukQkzQCN-Lq6ASZTwC8kocRV1qzT1TLfE4Ck0ws" data-cart-name="Wool Tailored Coat" data-cart-price="129">
 <div class="h-[380px] overflow-hidden relative">
 <a class="block w-full h-full" href="/product.php?product=coat" aria-label="View product"><img alt="Product 1" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A professional studio product shot of a high-quality navy wool coat on a neutral background. The lighting is even and soft, showcasing the texture and premium tailoring. The aesthetic is clean and modern, highlighting the garment as the hero of the image within a high-end e-commerce context." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBchUcD0EUx2j2iuPQpWTJiIV8_zw6fVXkrrcoW0NNOHi1SxdQu66MH8cT3G92PJljVOKIKgAIxyBfrzWWenQqSPhvb1LWVR7mApfsOtw2uz6Y0KuD0iE38tFoufpB9nbsctHFEUVTIfLvBiOPst0XZ0luxheHlGNr5fdlKJaBuMALpmJsNioBdRUkPlV9y0lbkOIJe3LmZLgRYbVi9X9cNiyeudwa6R7G7FYt8ukQkzQCN-Lq6ASZTwC8kocRV1qzT1TLfE4Ck0ws"/></a>
 <a aria-label="Add item to bag" class="js-cart-add-line absolute bottom-base right-base bg-white/90 backdrop-blur-md p-base rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" href="/checkout.php">
@@ -233,11 +233,11 @@
 <div class="p-md">
 <p class="font-label-md text-label-md text-secondary mb-xs">Outerwear</p>
 <h4 class="font-headline-sm text-headline-sm text-on-surface mb-xs">Wool Tailored Coat</h4>
-<p class="font-label-lg text-label-lg text-primary">$495.00</p>
+<p class="font-label-lg text-label-lg text-primary">$129.00</p>
 </div>
 </div>
 <!-- Product Card 2 -->
-<div class="min-w-[300px] bg-surface-container-lowest rounded-lg overflow-hidden group shadow-sm hover:shadow-md transition-shadow" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuCJnqionFY9y6EYbY_k4evRIJvyAUyoVg6PwXuwkjSxd9qMHcQnc8LWwRtP425gPIACwYi4BS5rEn6a0KGYC0FNUJvGW5DD0_kSsfAwo0JEcqudDivOu-ipKeVOJq6AGfrgwkWDX--L6eQ64NWowPC_RH-NzHnWgcRyYnqAasPBj1Kkzbs7jslOeGddj7tOwH78WBLt_Aj94R2TFl-YneG96_bN-w1tvvuaSkU-DBLuCJN2XQosE_KpP5P8hSYeH9aEujzdyJQhAKA" data-cart-name="Leather Artisan Pump" data-cart-price="285">
+<div class="min-w-[300px] bg-surface-container-lowest rounded-lg overflow-hidden group shadow-sm hover:shadow-md transition-shadow" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuCJnqionFY9y6EYbY_k4evRIJvyAUyoVg6PwXuwkjSxd9qMHcQnc8LWwRtP425gPIACwYi4BS5rEn6a0KGYC0FNUJvGW5DD0_kSsfAwo0JEcqudDivOu-ipKeVOJq6AGfrgwkWDX--L6eQ64NWowPC_RH-NzHnWgcRyYnqAasPBj1Kkzbs7jslOeGddj7tOwH78WBLt_Aj94R2TFl-YneG96_bN-w1tvvuaSkU-DBLuCJN2XQosE_KpP5P8hSYeH9aEujzdyJQhAKA" data-cart-name="Leather Artisan Pump" data-cart-price="79">
 <div class="h-[380px] overflow-hidden relative">
 <a class="block w-full h-full" href="/product.php?product=heels" aria-label="View product"><img alt="Product 2" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A clean, minimalist product shot of designer leather heels displayed on a geometric pedestal. The setting is bright and monochromatic, with a soft-white background and elegant shadows. The mood is sophisticated and focused on the luxurious material and craftsmanship of the shoes." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJnqionFY9y6EYbY_k4evRIJvyAUyoVg6PwXuwkjSxd9qMHcQnc8LWwRtP425gPIACwYi4BS5rEn6a0KGYC0FNUJvGW5DD0_kSsfAwo0JEcqudDivOu-ipKeVOJq6AGfrgwkWDX--L6eQ64NWowPC_RH-NzHnWgcRyYnqAasPBj1Kkzbs7jslOeGddj7tOwH78WBLt_Aj94R2TFl-YneG96_bN-w1tvvuaSkU-DBLuCJN2XQosE_KpP5P8hSYeH9aEujzdyJQhAKA"/></a>
 <a aria-label="Add item to bag" class="js-cart-add-line absolute bottom-base right-base bg-white/90 backdrop-blur-md p-base rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" href="/checkout.php">
@@ -247,11 +247,11 @@
 <div class="p-md">
 <p class="font-label-md text-label-md text-secondary mb-xs">Footwear</p>
 <h4 class="font-headline-sm text-headline-sm text-on-surface mb-xs">Leather Artisan Pump</h4>
-<p class="font-label-lg text-label-lg text-primary">$285.00</p>
+<p class="font-label-lg text-label-lg text-primary">$79.00</p>
 </div>
 </div>
 <!-- Product Card 3 -->
-<div class="min-w-[300px] bg-surface-container-lowest rounded-lg overflow-hidden group shadow-sm hover:shadow-md transition-shadow" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuCQPtWo0O_h25ZD-uqlJNUOw_CMG6SjaIqwAdS7fF4-9zejORMZ_NS2z4p6KnILnMjKol4ArgZXQDMligjx1c4OZfzlnKZ0QCj3wVXujPKAC1OmvFlLDAwsIRshZBPok04K30_grPaCoCynebD3yteoWChW4NTJTnO3_ms3Qj_z61YdTuKy8wujCaIbt_2-hq2cf1tvvkCCTGkhrSYwJaECUQpkz1Nc7H3rbZ475nBm59md7IDO_JiPOxvWsjB_tlGvr5_oX2AaDRs" data-cart-name="Structural Leather Tote" data-cart-price="425">
+<div class="min-w-[300px] bg-surface-container-lowest rounded-lg overflow-hidden group shadow-sm hover:shadow-md transition-shadow" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuCQPtWo0O_h25ZD-uqlJNUOw_CMG6SjaIqwAdS7fF4-9zejORMZ_NS2z4p6KnILnMjKol4ArgZXQDMligjx1c4OZfzlnKZ0QCj3wVXujPKAC1OmvFlLDAwsIRshZBPok04K30_grPaCoCynebD3yteoWChW4NTJTnO3_ms3Qj_z61YdTuKy8wujCaIbt_2-hq2cf1tvvkCCTGkhrSYwJaECUQpkz1Nc7H3rbZ475nBm59md7IDO_JiPOxvWsjB_tlGvr5_oX2AaDRs" data-cart-name="Structural Leather Tote" data-cart-price="89">
 <div class="h-[380px] overflow-hidden relative">
 <a class="block w-full h-full" href="/product.php?product=tote" aria-label="View product"><img alt="Product 3" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A minimalist studio photograph of a premium leather handbag with metallic hardware. The background is a soft, tonal cream, and the lighting is high-key to emphasize the luxury textures. The composition is balanced and elegant, reflecting the brand's sophisticated and efficient personality." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQPtWo0O_h25ZD-uqlJNUOw_CMG6SjaIqwAdS7fF4-9zejORMZ_NS2z4p6KnILnMjKol4ArgZXQDMligjx1c4OZfzlnKZ0QCj3wVXujPKAC1OmvFlLDAwsIRshZBPok04K30_grPaCoCynebD3yteoWChW4NTJTnO3_ms3Qj_z61YdTuKy8wujCaIbt_2-hq2cf1tvvkCCTGkhrSYwJaECUQpkz1Nc7H3rbZ475nBm59md7IDO_JiPOxvWsjB_tlGvr5_oX2AaDRs"/></a>
 <a aria-label="Add item to bag" class="js-cart-add-line absolute bottom-base right-base bg-white/90 backdrop-blur-md p-base rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" href="/checkout.php">
@@ -261,11 +261,11 @@
 <div class="p-md">
 <p class="font-label-md text-label-md text-secondary mb-xs">Bags</p>
 <h4 class="font-headline-sm text-headline-sm text-on-surface mb-xs">Structural Leather Tote</h4>
-<p class="font-label-lg text-label-lg text-primary">$425.00</p>
+<p class="font-label-lg text-label-lg text-primary">$89.00</p>
 </div>
 </div>
 <!-- Product Card 4 -->
-<div class="min-w-[300px] bg-surface-container-lowest rounded-lg overflow-hidden group shadow-sm hover:shadow-md transition-shadow" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuDyT9BhCFk-MjJkEIVTVNYLmb1QxR0SY6MzQjKyVpH6ALokWVkyTHfXcL2ePj0kD36BSmDQ2m1UX1l9b4U2Tdu6Ux_Jwi1oNQSi08hC2M2BgKgNtq5cjSrCZV5A51TrT7tgWxx1dIIwS_fPxiRfi1HDyR9tLER9Vb2k5gL75JToaQ-7z0vD5JDn-D6NuRPHrHGIS4-DIAHKY57ZRJ0l3agSH1MbIGmaB2agVwG8Mxy37aKCRpprkhttpXXdfeoWXyvTErZQS8kAyv4" data-cart-name="Silk Evening Gown" data-cart-price="690">
+<div class="min-w-[300px] bg-surface-container-lowest rounded-lg overflow-hidden group shadow-sm hover:shadow-md transition-shadow" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuDyT9BhCFk-MjJkEIVTVNYLmb1QxR0SY6MzQjKyVpH6ALokWVkyTHfXcL2ePj0kD36BSmDQ2m1UX1l9b4U2Tdu6Ux_Jwi1oNQSi08hC2M2BgKgNtq5cjSrCZV5A51TrT7tgWxx1dIIwS_fPxiRfi1HDyR9tLER9Vb2k5gL75JToaQ-7z0vD5JDn-D6NuRPHrHGIS4-DIAHKY57ZRJ0l3agSH1MbIGmaB2agVwG8Mxy37aKCRpprkhttpXXdfeoWXyvTErZQS8kAyv4" data-cart-name="Silk Evening Gown" data-cart-price="149">
 <div class="h-[380px] overflow-hidden relative">
 <a class="block w-full h-full" href="/product.php?product=gown" aria-label="View product"><img alt="Product 4" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A professional fashion product photo of a silk dress on a minimalist mannequin. The setting is bright and clean, with soft directional lighting that creates gentle shadows and highlights the sheen of the silk. The style is restrained and editorial, focusing on the high-quality material and fluid drape." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDyT9BhCFk-MjJkEIVTVNYLmb1QxR0SY6MzQjKyVpH6ALokWVkyTHfXcL2ePj0kD36BSmDQ2m1UX1l9b4U2Tdu6Ux_Jwi1oNQSi08hC2M2BgKgNtq5cjSrCZV5A51TrT7tgWxx1dIIwS_fPxiRfi1HDyR9tLER9Vb2k5gL75JToaQ-7z0vD5JDn-D6NuRPHrHGIS4-DIAHKY57ZRJ0l3agSH1MbIGmaB2agVwG8Mxy37aKCRpprkhttpXXdfeoWXyvTErZQS8kAyv4"/></a>
 <a aria-label="Add item to bag" class="js-cart-add-line absolute bottom-base right-base bg-white/90 backdrop-blur-md p-base rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" href="/checkout.php">
@@ -275,7 +275,7 @@
 <div class="p-md">
 <p class="font-label-md text-label-md text-secondary mb-xs">Dresses</p>
 <h4 class="font-headline-sm text-headline-sm text-on-surface mb-xs">Silk Evening Gown</h4>
-<p class="font-label-lg text-label-lg text-primary">$690.00</p>
+<p class="font-label-lg text-label-lg text-primary">$149.00</p>
 </div>
 </div>
 </div>

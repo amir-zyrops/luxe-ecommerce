@@ -177,7 +177,7 @@
 <span class="font-label-lg text-label-lg text-secondary" data-product-reviews="">(124 Reviews)</span>
 </div>
 </div>
-<div class="font-headline-md text-headline-md text-on-surface" data-product-price-display="">$180.00</div>
+<div class="font-headline-md text-headline-md text-on-surface" data-product-price-display="">$69.00</div>
 <!-- Color Selection -->
 <div class="flex flex-col gap-base">
 <span class="font-label-lg text-label-lg text-on-surface">Color: <span class="text-secondary font-normal" data-selected-color="">Pristine White</span></span>
@@ -204,7 +204,7 @@
 </div>
 </div>
 <div class="flex flex-col gap-sm">
-<a class="block w-full py-md bg-primary text-on-primary font-label-lg text-label-lg rounded-lg shadow-lg hover:opacity-90 active:scale-95 transition-all text-center" data-add-to-bag="" data-product-name="Architect Low-Top" data-product-price="180" href="/checkout.php">Add to Bag</a>
+<a class="block w-full py-md bg-primary text-on-primary font-label-lg text-label-lg rounded-lg shadow-lg hover:opacity-90 active:scale-95 transition-all text-center" data-add-to-bag="" data-product-name="Architect Low-Top" data-product-price="69" href="/checkout.php">Add to Bag</a>
 <button class="w-full py-md border border-on-surface text-on-surface font-label-lg text-label-lg rounded-lg flex items-center justify-center gap-sm hover:bg-surface-container-low active:scale-95 transition-all" data-wishlist="">
 <span class="material-symbols-outlined">favorite</span>
                         <span data-wishlist-label="">Add to Wishlist</span>
@@ -248,7 +248,7 @@
 </div>
 <div class="grid grid-cols-2 md:grid-cols-4 gap-md">
 <!-- Product Card 1 -->
-<div class="group cursor-pointer" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuDC93J-Mi_uyRyUJEzeo2VUt3gCnx1KweKP_DA251be5VmSSPWzQiE3EhjkhxBwd55Gdn3J9N_12Bg5RS3V-OcMAmCzGyfEn-qdSteSk2Sm2QxMbfFQaTV2PYuxS-hkbx1W8FzSC8WNHMBlUvT6u9qRYmqskiYnAom81LJ-H0Fo81sIZgmqT2a5PI1sSigLrSXPZT1NqMpPwhbGMQ7KSvY-jFjHsUWYYIzRGNgt1QR5JJXBwnUKEJSA31X41LiJjnESmcWWo8QyvTc" data-cart-name="Cloud Runner" data-cart-price="195">
+<div class="group cursor-pointer" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuDC93J-Mi_uyRyUJEzeo2VUt3gCnx1KweKP_DA251be5VmSSPWzQiE3EhjkhxBwd55Gdn3J9N_12Bg5RS3V-OcMAmCzGyfEn-qdSteSk2Sm2QxMbfFQaTV2PYuxS-hkbx1W8FzSC8WNHMBlUvT6u9qRYmqskiYnAom81LJ-H0Fo81sIZgmqT2a5PI1sSigLrSXPZT1NqMpPwhbGMQ7KSvY-jFjHsUWYYIzRGNgt1QR5JJXBwnUKEJSA31X41LiJjnESmcWWo8QyvTc" data-cart-name="Cloud Runner" data-cart-price="59">
 <div class="relative overflow-hidden rounded-lg bg-surface-container-lowest mb-sm aspect-[3/4]">
 <a class="block w-full h-full" href="/product.php?product=cloud-runner" aria-label="View product"><img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A side view of a sleek, modern runner-style shoe in a soft grey and off-white colorway. The photo is taken in a professional studio setting with minimal props and soft lighting. The aesthetic is high-fashion and minimalist, focusing on the silhouette and premium materials of the footwear." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDC93J-Mi_uyRyUJEzeo2VUt3gCnx1KweKP_DA251be5VmSSPWzQiE3EhjkhxBwd55Gdn3J9N_12Bg5RS3V-OcMAmCzGyfEn-qdSteSk2Sm2QxMbfFQaTV2PYuxS-hkbx1W8FzSC8WNHMBlUvT6u9qRYmqskiYnAom81LJ-H0Fo81sIZgmqT2a5PI1sSigLrSXPZT1NqMpPwhbGMQ7KSvY-jFjHsUWYYIzRGNgt1QR5JJXBwnUKEJSA31X41LiJjnESmcWWo8QyvTc"/></a>
 <a aria-label="Add item to bag" class="js-cart-add-line absolute bottom-base right-base w-10 h-10 bg-surface-container-lowest/90 backdrop-blur-md rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center" href="/checkout.php">
@@ -256,10 +256,10 @@
 </a>
 </div>
 <h3 class="font-label-lg text-label-lg text-on-surface">Cloud Runner</h3>
-<p class="font-body-sm text-body-sm text-secondary">$195.00</p>
+<p class="font-body-sm text-body-sm text-secondary">$59.00</p>
 </div>
 <!-- Product Card 2 -->
-<div class="group cursor-pointer" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuAjpeUssbT7HMtTqW4qyakzgJS1FiU-SwjRpIy1Tw9BZ6aW8dg1ia9mBEQTsXehCdnQ38ZNuPh-KwVqfaeAzAieT8_pSEHP2-gnuITMw24A-7ga_cJJtTAdWKtIKtSQB42G6Lq4ASqeKiDYxXOXIJ_svraHjMSC6L9xtrDwdUFYZMV5tu9rBzDSf-JQj_B9GQqtOtgotp4hmyshrGNnQ18q8fvkriRBUhxAH8NCNZuoL9oEZk47FOljzcP6gzOFg5XhTuuE5NEFFuA" data-cart-name="Downtown High-Top" data-cart-price="240">
+<div class="group cursor-pointer" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuAjpeUssbT7HMtTqW4qyakzgJS1FiU-SwjRpIy1Tw9BZ6aW8dg1ia9mBEQTsXehCdnQ38ZNuPh-KwVqfaeAzAieT8_pSEHP2-gnuITMw24A-7ga_cJJtTAdWKtIKtSQB42G6Lq4ASqeKiDYxXOXIJ_svraHjMSC6L9xtrDwdUFYZMV5tu9rBzDSf-JQj_B9GQqtOtgotp4hmyshrGNnQ18q8fvkriRBUhxAH8NCNZuoL9oEZk47FOljzcP6gzOFg5XhTuuE5NEFFuA" data-cart-name="Downtown High-Top" data-cart-price="79">
 <div class="relative overflow-hidden rounded-lg bg-surface-container-lowest mb-sm aspect-[3/4]">
 <a class="block w-full h-full" href="/product.php?product=downtown-high-top" aria-label="View product"><img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A professional product photograph of luxury high-top leather boots in a deep mahogany brown. The lighting is dramatic but controlled, emphasizing the rich patina of the leather. The environment is clean and architectural, fitting a premium e-commerce brand identity with a modern minimalist soul." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAjpeUssbT7HMtTqW4qyakzgJS1FiU-SwjRpIy1Tw9BZ6aW8dg1ia9mBEQTsXehCdnQ38ZNuPh-KwVqfaeAzAieT8_pSEHP2-gnuITMw24A-7ga_cJJtTAdWKtIKtSQB42G6Lq4ASqeKiDYxXOXIJ_svraHjMSC6L9xtrDwdUFYZMV5tu9rBzDSf-JQj_B9GQqtOtgotp4hmyshrGNnQ18q8fvkriRBUhxAH8NCNZuoL9oEZk47FOljzcP6gzOFg5XhTuuE5NEFFuA"/></a>
 <a aria-label="Add item to bag" class="js-cart-add-line absolute bottom-base right-base w-10 h-10 bg-surface-container-lowest/90 backdrop-blur-md rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center" href="/checkout.php">
@@ -267,10 +267,10 @@
 </a>
 </div>
 <h3 class="font-label-lg text-label-lg text-on-surface">Downtown High-Top</h3>
-<p class="font-body-sm text-body-sm text-secondary">$240.00</p>
+<p class="font-body-sm text-body-sm text-secondary">$79.00</p>
 </div>
 <!-- Product Card 3 -->
-<div class="group cursor-pointer" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuCZA8QsI1z-4yH3tVTcLmNVZSvq3xbj2ReUE6tr_ldz3pUm4x6nLz0K8UtTdzYAXvt7OIQ4lGi_6bYNDOyqL9I_QJVDOF48pDIH-Hl8svspIO25hllQki_zXnMSkeUILE1UWGtW97p85dErHOd_YKll0yV9E6Bw0WrAMHHHh88cflfziP3AfRvQ8HCNboloyIkI7rub2yxdcXDNddCggX3FjoxliU_zAL_I9FGwVFlgZKL2z8nMK2kpTSHbaQalI_DPVzFDIE-mzos" data-cart-name="Essential Tote" data-cart-price="375">
+<div class="group cursor-pointer" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuCZA8QsI1z-4yH3tVTcLmNVZSvq3xbj2ReUE6tr_ldz3pUm4x6nLz0K8UtTdzYAXvt7OIQ4lGi_6bYNDOyqL9I_QJVDOF48pDIH-Hl8svspIO25hllQki_zXnMSkeUILE1UWGtW97p85dErHOd_YKll0yV9E6Bw0WrAMHHHh88cflfziP3AfRvQ8HCNboloyIkI7rub2yxdcXDNddCggX3FjoxliU_zAL_I9FGwVFlgZKL2z8nMK2kpTSHbaQalI_DPVzFDIE-mzos" data-cart-name="Essential Tote" data-cart-price="69">
 <div class="relative overflow-hidden rounded-lg bg-surface-container-lowest mb-sm aspect-[3/4]">
 <a class="block w-full h-full" href="/product.php?product=essential-tote" aria-label="View product"><img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="An elegant leather tote bag in a creamy beige color, displayed in a bright, airy studio with soft shadows. The shot is clean and minimalist, showing the texture of the fine leather and the precision of the hardware. The mood is sophisticated and aligns with a luxury lifestyle aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCZA8QsI1z-4yH3tVTcLmNVZSvq3xbj2ReUE6tr_ldz3pUm4x6nLz0K8UtTdzYAXvt7OIQ4lGi_6bYNDOyqL9I_QJVDOF48pDIH-Hl8svspIO25hllQki_zXnMSkeUILE1UWGtW97p85dErHOd_YKll0yV9E6Bw0WrAMHHHh88cflfziP3AfRvQ8HCNboloyIkI7rub2yxdcXDNddCggX3FjoxliU_zAL_I9FGwVFlgZKL2z8nMK2kpTSHbaQalI_DPVzFDIE-mzos"/></a>
 <a aria-label="Add item to bag" class="js-cart-add-line absolute bottom-base right-base w-10 h-10 bg-surface-container-lowest/90 backdrop-blur-md rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center" href="/checkout.php">
@@ -278,10 +278,10 @@
 </a>
 </div>
 <h3 class="font-label-lg text-label-lg text-on-surface">Essential Tote</h3>
-<p class="font-body-sm text-body-sm text-secondary">$375.00</p>
+<p class="font-body-sm text-body-sm text-secondary">$69.00</p>
 </div>
 <!-- Product Card 4 -->
-<div class="group cursor-pointer" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuC4Z1PFbN5d5iX569B8_T5_giVQDfygycpDU7KE5ZeWXlQyLIJmRezROLUNVXqri-ol3nabfGSMPEJ4iCQRQ3T6ieAeILwdCX24kcjlMHyXEspuvHJa7qUNV4Ty59HPXyJstJCij6Din9uuEUaPdOqaoCdpTSzOijKAqnOB29zI02kZbQC29RivviKhLtFIO0S6vHSxpncfEwf_k_0GPHYo0IEKYDIqk8vh4-4e-BGwzb7smuC_FkCeST4f3apB7htMF-P6Mo4ECbE" data-cart-name="Mono-Chrome Watch" data-cart-price="220">
+<div class="group cursor-pointer" data-cart-image="https://lh3.googleusercontent.com/aida-public/AB6AXuC4Z1PFbN5d5iX569B8_T5_giVQDfygycpDU7KE5ZeWXlQyLIJmRezROLUNVXqri-ol3nabfGSMPEJ4iCQRQ3T6ieAeILwdCX24kcjlMHyXEspuvHJa7qUNV4Ty59HPXyJstJCij6Din9uuEUaPdOqaoCdpTSzOijKAqnOB29zI02kZbQC29RivviKhLtFIO0S6vHSxpncfEwf_k_0GPHYo0IEKYDIqk8vh4-4e-BGwzb7smuC_FkCeST4f3apB7htMF-P6Mo4ECbE" data-cart-name="Mono-Chrome Watch" data-cart-price="99">
 <div class="relative overflow-hidden rounded-lg bg-surface-container-lowest mb-sm aspect-[3/4]">
 <a class="block w-full h-full" href="/product.php?product=mono-watch" aria-label="View product"><img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A close-up high-key photograph of a luxury minimalist watch with a white face and brushed steel strap. The image is bright and crisp, with soft reflections on the glass. The background is a clean white textured paper, creating a high-end editorial feel that emphasizes clarity and precision." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4Z1PFbN5d5iX569B8_T5_giVQDfygycpDU7KE5ZeWXlQyLIJmRezROLUNVXqri-ol3nabfGSMPEJ4iCQRQ3T6ieAeILwdCX24kcjlMHyXEspuvHJa7qUNV4Ty59HPXyJstJCij6Din9uuEUaPdOqaoCdpTSzOijKAqnOB29zI02kZbQC29RivviKhLtFIO0S6vHSxpncfEwf_k_0GPHYo0IEKYDIqk8vh4-4e-BGwzb7smuC_FkCeST4f3apB7htMF-P6Mo4ECbE"/></a>
 <a aria-label="Add item to bag" class="js-cart-add-line absolute bottom-base right-base w-10 h-10 bg-surface-container-lowest/90 backdrop-blur-md rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center" href="/checkout.php">
@@ -289,7 +289,7 @@
 </a>
 </div>
 <h3 class="font-label-lg text-label-lg text-on-surface">Mono-Chrome Watch</h3>
-<p class="font-body-sm text-body-sm text-secondary">$220.00</p>
+<p class="font-body-sm text-body-sm text-secondary">$99.00</p>
 </div>
 </div>
 </section>
