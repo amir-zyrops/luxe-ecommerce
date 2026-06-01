@@ -650,12 +650,15 @@
   }
 
   function initActiveNavState() {
-    const page = normalizePageName(window.location.pathname);
+    const pathname = window.location.pathname;
+    const page = normalizePageName(pathname);
     const segment = (new URLSearchParams(window.location.search).get("segment") || "").toLowerCase();
     const view = (new URLSearchParams(window.location.search).get("view") || "").toLowerCase();
     const segmentKeys = new Set(["men", "women", "accessories"]);
     let desired = "";
-    if (page === "collections.php") {
+    if (isRetailerPath(pathname)) {
+      desired = retailerNavKeyFromPage(page, view);
+    } else if (page === "collections.php") {
       if (view === "new-arrivals") {
         desired = "new-arrivals";
       } else if (segmentKeys.has(segment)) {
@@ -681,7 +684,7 @@
       let activeLink = null;
       const keyedLinks = new Map();
       Array.from(nav.querySelectorAll("a")).forEach((link) => {
-        const key = getCollectionNavKey(link);
+        const key = getNavKey(link);
 
         if (!key) {
           return;
@@ -745,6 +748,29 @@
     });
   }
 
+  function getNavKey(link) {
+    return getRetailerNavKey(link) || getCollectionNavKey(link);
+  }
+
+  function getRetailerNavKey(link) {
+    const label = (link.textContent || "").trim().toLowerCase();
+    const url = new URL(link.getAttribute("href") || "", window.location.href);
+    if (!isRetailerPath(url.pathname)) {
+      return "";
+    }
+
+    const page = normalizePageName(url.pathname);
+    const view = (url.searchParams.get("view") || "").toLowerCase();
+
+    if (page === "login.php" || page === "signup.php" || view === "login" || view === "signup") {
+      return "retailer-login";
+    }
+    if (label === "dashboard" || page === "dashboard.php" || view === "dashboard" || (!view && page === "index.php")) {
+      return "retailer-dashboard";
+    }
+    return "";
+  }
+
   function getCollectionNavKey(link) {
     const label = (link.textContent || "").trim().toLowerCase();
     const url = new URL(link.getAttribute("href") || "", window.location.origin);
@@ -773,6 +799,17 @@
     if (page === "product") return "product.php";
     if (page === "checkout") return "checkout.php";
     return page;
+  }
+
+  function isRetailerPath(pathname) {
+    return String(pathname || "").startsWith("/retailer/");
+  }
+
+  function retailerNavKeyFromPage(page, view) {
+    if (page === "login.php" || page === "signup.php" || view === "login" || view === "signup") {
+      return "retailer-login";
+    }
+    return "retailer-dashboard";
   }
 
   function getNavIndicatorMetrics(nav, link) {
@@ -918,6 +955,15 @@
     let activeSize = "";
     let activeColor = "";
     let activeSegment = "";
+    const maxCardPrice = Math.max(0, ...cards.map((card) => Number(card.dataset.price || 0)));
+    if (priceInput && maxCardPrice > Number(priceInput.max || 0)) {
+      const nextMax = Math.ceil(maxCardPrice / 100) * 100;
+      const wasAtMax = Number(priceInput.value) >= Number(priceInput.max || 0);
+      priceInput.max = String(nextMax);
+      if (wasAtMax) {
+        priceInput.value = String(nextMax);
+      }
+    }
 
     const readChecked = () => categoryInputs.filter((input) => input.checked).map((input) => input.value);
 

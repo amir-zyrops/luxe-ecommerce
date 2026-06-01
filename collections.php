@@ -1,13 +1,97 @@
 <?php
+declare(strict_types=1);
+
+require_once __DIR__ . "/includes/database.php";
+
 $segment = isset($_GET["segment"]) ? strtolower(trim((string) $_GET["segment"])) : "";
 $view = isset($_GET["view"]) ? strtolower(trim((string) $_GET["view"])) : "";
 $segmentOptions = ["men", "women", "accessories"];
 $isNewArrivalsActive = $view === "new-arrivals";
 $isCollectionsActive = !$isNewArrivalsActive && !in_array($segment, $segmentOptions, true);
+$retailerProducts = fetch_collection_retailer_products();
 
 $navBase = "font-label-lg text-label-lg dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-inverse-primary transition-colors";
 $navActive = "text-primary dark:text-inverse-primary";
 $navIdle = "text-secondary";
+
+function fetch_collection_retailer_products(): array
+{
+    try {
+        $pdo = luxe_db();
+        $stmt = $pdo->query(
+            "SELECT p.product_slug, p.name, p.description, p.category, p.segment, p.price, p.image_url,
+                    p.default_color, p.available_colors, p.available_sizes, p.is_new_arrival, p.popularity
+             FROM products p
+             JOIN retailer_accounts r ON r.id = p.vendor_id
+             WHERE p.active = true
+               AND p.approval_status = 'approved'
+               AND p.archived_at IS NULL
+               AND r.email <> 'system@luxe.local'
+             ORDER BY p.updated_at DESC"
+        );
+        return array_map("map_collection_product", $stmt->fetchAll());
+    } catch (Throwable) {
+        return [];
+    }
+}
+
+function map_collection_product(array $row): array
+{
+    $colors = json_decode((string) $row["available_colors"], true) ?: [];
+    $sizes = json_decode((string) $row["available_sizes"], true) ?: [];
+    return [
+        "id" => (string) $row["product_slug"],
+        "name" => (string) $row["name"],
+        "description" => (string) $row["description"],
+        "category" => (string) $row["category"],
+        "segment" => (string) $row["segment"],
+        "price" => (float) $row["price"],
+        "image" => (string) $row["image_url"],
+        "defaultColor" => (string) $row["default_color"],
+        "colors" => collection_string_values($colors),
+        "sizes" => collection_string_values($sizes),
+        "newArrival" => (bool) $row["is_new_arrival"],
+        "popularity" => (int) $row["popularity"],
+    ];
+}
+
+function collection_string_values(array $values): array
+{
+    $mapped = array_map(
+        static fn ($value): string => is_array($value) ? (string) ($value["label"] ?? $value["name"] ?? "") : (string) $value,
+        $values
+    );
+    return array_values(array_filter($mapped, static fn (string $value): bool => $value !== ""));
+}
+
+function collection_color_filter(string $name): string
+{
+    $value = strtolower($name);
+    if (str_contains($value, "blue") || str_contains($value, "navy")) return "blue";
+    if (str_contains($value, "olive") || str_contains($value, "green")) return "olive";
+    if (str_contains($value, "sand") || str_contains($value, "camel") || str_contains($value, "cream") || str_contains($value, "ivory") || str_contains($value, "champagne") || str_contains($value, "gold")) return "sand";
+    if (str_contains($value, "black") || str_contains($value, "oxblood") || str_contains($value, "brown") || str_contains($value, "mahogany") || str_contains($value, "walnut") || str_contains($value, "chestnut")) return "black";
+    return "gray";
+}
+
+function collection_category_label(string $category): string
+{
+    return [
+        "outerwear" => "Outerwear",
+        "knitwear" => "Knitwear",
+        "shirts-tops" => "Shirts & Tops",
+        "trousers" => "Trousers",
+        "footwear" => "Footwear",
+        "dresses" => "Dresses",
+        "bags" => "Bags",
+        "accessories" => "Accessories",
+    ][$category] ?? "Product";
+}
+
+function e(mixed $value): string
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES, "UTF-8");
+}
 ?>
 <!DOCTYPE html>
 
@@ -126,14 +210,17 @@ $navIdle = "text-secondary";
             transform: translateY(0);
         }
     </style>
-<link href="/assets/luxe-mark.svg" rel="icon" type="image/svg+xml"/>
+<link href="/assets/luxe-favicon.svg" rel="icon" type="image/svg+xml"/>
 <link href="/assets/css/site.css" rel="stylesheet"/>
 </head>
 <body class="bg-background text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container">
 <!-- TopNavBar -->
 <header class="sticky top-0 w-full z-50 bg-surface/80 dark:bg-surface/80 backdrop-blur-md shadow-sm border-b border-outline-variant/30">
 <div class="flex justify-between items-center h-20 px-gutter max-w-container-max mx-auto">
-<a class="font-headline-md text-headline-md font-bold text-on-surface dark:text-inverse-on-surface tracking-tighter" href="/">LUXE</a>
+<a class="luxe-site-logo" href="/" aria-label="LUXE home">
+<img src="/assets/luxe-mark.svg" alt="" aria-hidden="true"/>
+<span>LUXE</span>
+</a>
 <nav class="hidden md:flex items-center space-x-lg h-full">
 <a class="<?= $navBase ?> <?= $isNewArrivalsActive ? $navActive : $navIdle ?>" href="/collections.php?view=new-arrivals">New Arrivals</a>
 <a class="<?= $navBase ?> <?= $isCollectionsActive ? $navActive : $navIdle ?>" href="/collections.php">Collections</a>
@@ -454,6 +541,27 @@ $navIdle = "text-secondary";
 <p class="font-body-sm text-body-sm text-on-surface-variant">Steel • Silver</p>
 </div>
 </div>
+<?php foreach ($retailerProducts as $product): ?>
+<?php
+$colorNames = $product["colors"] ?: [$product["defaultColor"]];
+$colorFilters = array_values(array_unique(array_map("collection_color_filter", $colorNames)));
+$colorText = $product["defaultColor"] ?: ($colorNames[0] ?? "Default");
+$newArrivalAttr = $product["newArrival"] ? ' data-new-arrival="true"' : "";
+?>
+<div class="product-card group relative bg-surface-container-lowest rounded-lg shadow-[0px_4px_20px_rgba(0,0,0,0.04)] overflow-hidden" data-category="<?= e($product["category"]) ?>" data-collection-product="" data-colors="<?= e(implode(",", $colorFilters)) ?>" data-popularity="<?= e((string) $product["popularity"]) ?>" data-price="<?= e((string) $product["price"]) ?>" data-segment="<?= e($product["segment"]) ?>" data-sizes="<?= e(implode(",", $product["sizes"])) ?>"<?= $newArrivalAttr ?>>
+<div class="aspect-[3/4] relative overflow-hidden bg-surface-container-low">
+<a class="block w-full h-full" href="/product.php?product=<?= e($product["id"]) ?>" aria-label="View product"><img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="<?= e($product["name"]) ?>" src="<?= e($product["image"]) ?>"/></a>
+<a class="add-to-bag js-cart-add-line absolute bottom-4 left-4 right-4 bg-on-background text-surface-container-lowest py-3 rounded-lg font-label-lg text-label-lg opacity-0 translate-y-2 transition-all duration-300 hover:bg-primary text-center" href="/checkout.php">Add to Bag</a>
+</div>
+<div class="p-md">
+<div class="flex justify-between items-start mb-xs">
+<h3 class="font-headline-sm text-headline-sm text-on-surface"><?= e($product["name"]) ?></h3>
+<span class="font-label-lg text-label-lg text-primary">$<?= e(number_format((float) $product["price"], 0)) ?></span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><?= e(collection_category_label($product["category"])) ?> • <?= e($colorText) ?></p>
+</div>
+</div>
+<?php endforeach; ?>
 </div>
 <p class="hidden mt-lg text-center font-body-md text-body-md text-on-surface-variant" data-empty-products="">No products match those filters.</p>
 <!-- Pagination -->
